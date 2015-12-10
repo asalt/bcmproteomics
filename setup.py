@@ -12,7 +12,7 @@ setup(
     description = 'A library for conveniently grabbing data from BCM_Proteomics iSPEC',
     license = 'MIT',
     url = 'http://www.epicome.org/',
-    long_description = read('README'),
+    long_description = read('README.md'),
     packages=find_packages(),
     install_requires=['pandas', 'pyodbc'],
     keywords=['bioinformatics', 'data wrangling'],
