@@ -219,6 +219,8 @@ def _getlogin() :
         print(*[server for server in servers], sep='\n')
         server = input('Select an iSPEC : ').strip()
         params['url'] = servers.get(server, '10.16.2.74')
+    else:
+        params['url'] = servers.get(server, '10.16.2.74')
         
     return params
 
