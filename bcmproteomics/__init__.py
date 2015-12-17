@@ -50,9 +50,10 @@ class E2G:
     note that many methods on E2G are (currently) unavailable with a joined E2G instance
     ----------
     """
-    def __init__(self, recno=None, runno=None):
+    def __init__(self, recno=None, runno=None, searchno=None):
         self.recno = recno
         self.runno = runno
+        self.searchno = searchno
         #self.techrepno =
         self.sample = ''
         self.treatment = ''
@@ -73,22 +74,29 @@ class E2G:
         """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
         return self._df
 
-    def get_exprun(self, recno=None, runno=1):
+    def get_exprun(self, recno=None, runno=1, searchno=1):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
         """
         if not recno:
             raise ValueError('recno must be specified')
         if runno is None:
             runno = 1  # make sure default runno is 1
+        if searchno is None:
+            searchno = 1
 
         conn = filedb_connect()
         if isinstance(conn, str):
             return # failed to make connection, user is informed in filedb_connect()
 
         
-        sql = "SELECT {} from iSPEC_BCM.iSPEC_exp2gene where e2g_EXPRecNo={} AND e2g_EXPRunNo={}".format(', '.join(e2gcolumns),
-                                                                                                         recno,
-                                                                                                         runno)
+        sql = ("SELECT {} from iSPEC_BCM.iSPEC_exp2gene where "
+               "e2g_EXPRecNo={} "
+               "AND e2g_EXPRunNo={} "
+               "AND e2g_EXPSearchNo={}").format(', '.join(e2gcolumns),
+                                                recno,
+                                                runno,
+                                                searchno)
+               
         self._df = self._construct_df(sql, conn)
         sql_description = "SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Extract_Treatment, exp_IDENTIFIER, " \
                           "exp_Extract_Genotype from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}".format(recno)
@@ -101,6 +109,7 @@ class E2G:
         #self.affinity = ''.join(info['exp_IDENTIFIER'])
         self.recno = recno
         self.runno = runno
+        self.searchno = searchno
         return self
 
     @staticmethod
