@@ -9,7 +9,7 @@ from .e2gitems import e2gcolumns
 user = None
 pw   = None
 url  = None
-params = {'user': user, 'pw': pw, 'url':url}
+params = {'user': user, 'pw': pw, 'url': url}
 
 
 
@@ -219,8 +219,8 @@ def _getlogin() :
         print(*[server for server in servers], sep='\n')
         server = input('Select an iSPEC : ').strip()
         params['url'] = servers.get(server, '10.16.2.74')
-    else:
-        params['url'] = servers.get(server, '10.16.2.74')
+    elif 'url' in params:
+        params['url'] = servers.get(url, '10.16.2.74')
         
     return params
 
