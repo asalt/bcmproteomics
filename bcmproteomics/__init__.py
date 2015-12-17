@@ -61,7 +61,7 @@ class E2G:
         self.genotype = ''
         self.affinity = ''
         if recno is not None:
-            self.get_exprun(recno, runno) # self._df gets set through here
+            self.get_exprun(recno, runno, searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
