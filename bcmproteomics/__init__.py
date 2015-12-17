@@ -8,7 +8,8 @@ from .e2gitems import e2gcolumns
 
 user = None
 pw   = None
-params = {'user': user, 'pw': pw}
+url  = None
+params = {'user': user, 'pw': pw, 'url':url}
 
 
 
@@ -57,6 +58,7 @@ class E2G:
         self.treatment = ''
         self.exptype = ''
         self.genotype = ''
+        self.affinity = ''
         if recno is not None:
             self.get_exprun(recno, runno) # self._df gets set through here
         else:
@@ -78,8 +80,11 @@ class E2G:
             raise ValueError('recno must be specified')
         if runno is None:
             runno = 1  # make sure default runno is 1
+
         conn = filedb_connect()
-        if not conn : return # failed to make connection, user is informed in _connect()
+        if isinstance(conn, str):
+            return # failed to make connection, user is informed in filedb_connect()
+
         
         sql = "SELECT {} from iSPEC_BCM.iSPEC_exp2gene where e2g_EXPRecNo={} AND e2g_EXPRunNo={}".format(', '.join(e2gcolumns),
                                                                                                          recno,
@@ -93,6 +98,7 @@ class E2G:
         self.treatment = ''.join(info['exp_Extract_Treatment'])
         self.exptype = ''.join(info['exp_EXPClass'])
         self.genotype = ''.join(info['exp_Extract_Genotype'])
+        #self.affinity = ''.join(info['exp_IDENTIFIER'])
         self.recno = recno
         self.runno = runno
         return self
@@ -194,8 +200,12 @@ class E2G:
 def _getlogin() :
     """Checks if the username and password have been established for the current python session.
     If username or password is undefined, will prompt the user.
-    """
 
+    Defaults to bcmproteomics.
+    """
+    servers = {'bcmproteomics': '10.16.2.74',
+               'jun lab': '10.13.14.171',
+               }
     if params.get('user') is None:
         print('Username is not set')
         user = input('Enter your iSPEC username : ')
@@ -204,6 +214,12 @@ def _getlogin() :
         print('Password is not set')
         pw = getpass('Enter your password : ')
         params['pw'] = pw
+    if params.get('url') is None:
+        print('iSPEC is not set, the options are:')
+        print(*[server for server in servers], sep='\n')
+        server = input('Select an iSPEC : ').strip()
+        params['url'] = servers.get(server, '10.16.2.74')
+        
     return params
 
 def filedb_connect():
@@ -216,14 +232,26 @@ def filedb_connect():
     """
     
     params = _getlogin()
+
     login_info = 'UID={user};PWD={pw}'.format(**params)
+
+    server_info = 'SERVER={url};'.format(**params)
     
     try:
-        conn = pyodbc.connect('DRIVER={FileMaker ODBC};SERVER=10.16.2.74;DATABASE=iSPEC_BCM;'+login_info)
-    except pyodbc.Error:  # any ODBC error is returned to python as "Error"
-        print('Error with username or password')  # maybe raise an error instead?
+        conn = pyodbc.connect('DRIVER={FileMaker ODBC};'+server_info+'DATABASE=iSPEC_BCM;'+login_info)
+    except pyodbc.Error as e:  # any ODBC error is returned to python as "Error"
+        error = e.__str__()
+        if 'password incorrect' in error.lower():
+            print('Invalid password.')
+        elif 'account' in error.lower():
+            print('Incorrect account.')
+        elif 'failed to connect' in error.lower():
+            print('Error making connection, check the address.')
+        else:
+            print('Error with username or password')  # maybe raise an error instead?
         params.clear()
-        return None
+        return error
+
     return conn
 
 def get_funcats(geneidlist):
@@ -238,8 +266,10 @@ def get_funcats(geneidlist):
     """
     if type(geneidlist) is not list or len(geneidlist) == 0:
         raise TypeError('Input must be a list with at least 1 element')
+    # need to make sure every element in the geneidlist is a string
     conn = filedb_connect()
-    if not conn : return # failed to make connection, user is informed in filedb_connect()
+    if isinstance(conn, str):
+        return conn # failed to make connection, user is informed in filedb_connect()
 
     genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
                "gene_GeneSymbol, gene_GeneDescription, "\
@@ -254,6 +284,7 @@ def get_funcats(geneidlist):
     genedf.rename(columns={'u2gPeptIBAQAveCount':'GeneCapacity'}, inplace=True)
     genedf['GeneID'] = [str(int(x)) for x in genedf.index.tolist()]
     genedf['FunCats'].fillna('', inplace=True)
+    conn.close()
     return genedf
 
 def get_geneids(taxonid):
@@ -264,7 +295,8 @@ def get_geneids(taxonid):
             raise TypeError('Input must be a taxon id')
 
     conn = filedb_connect()
-    if not conn : return # failed to make connection, user is informed in _connect()
+    if isinstance(conn, str):
+        return conn # failed to make connection, user is informed in filedb_connect()
     sql = "SELECT gene_GeneID from iSPEC_BCM.iSPEC_Genes "\
            "WHERE gene_TaxonID={}".format(taxonid)
     cursor = conn.execute(sql)

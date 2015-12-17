@@ -6,7 +6,7 @@ def read(fname):
 
 setup(
     name = 'bcmproteomics',
-    version = '0.0.1',
+    version = '0.0.2',
     author = 'Alex Saltzman',
     author_email = 'saltzman@bcm.edu',
     description = 'A library for conveniently grabbing data from BCM_Proteomics iSPEC',
