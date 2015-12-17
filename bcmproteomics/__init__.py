@@ -67,7 +67,7 @@ class E2G:
         self._joined = False
 
     def __repr__(self):
-        return ('Record number {}, run number {}'.format(self.recno, self.runno))
+        return ('Record number {}, run number {}'.format(self.recno, self.runno, self.searchno))
 
     @property
     def df(self):
