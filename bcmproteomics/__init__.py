@@ -59,7 +59,7 @@ class E2G:
         self.treatment = ''
         self.exptype = ''
         self.genotype = ''
-        self.affinity = ''
+        self.added_by = ''
         if recno is not None:
             self.get_exprun(recno, runno, searchno) # self._df gets set through here
         else:
@@ -99,14 +99,14 @@ class E2G:
                
         self._df = self._construct_df(sql, conn)
         sql_description = "SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Extract_Treatment, exp_IDENTIFIER, " \
-                          "exp_Extract_Genotype from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}".format(recno)
+                          "exp_Extract_Genotype, exp_AddedBy from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}".format(recno)
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
         conn.close()
         self.sample = ''.join(info['exp_Extract_CellTissue']) 
         self.treatment = ''.join(info['exp_Extract_Treatment'])
         self.exptype = ''.join(info['exp_EXPClass'])
         self.genotype = ''.join(info['exp_Extract_Genotype'])
-        #self.affinity = ''.join(info['exp_IDENTIFIER'])
+        self.added_by = ''.join(info['exp_AddedBy'])
         self.recno = recno
         self.runno = runno
         self.searchno = searchno
