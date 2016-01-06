@@ -11,7 +11,7 @@ setup(
     author_email = 'saltzman@bcm.edu',
     description = 'A library for conveniently grabbing data from BCM_Proteomics iSPEC',
     license = 'MIT',
-    url = 'http://www.epicome.org/',
+    url = 'https://github.com/asalt/bcmproteomics',
     long_description = read('README.md'),
     packages=find_packages(),
     install_requires=['pandas', 'pyodbc'],
@@ -24,7 +24,7 @@ setup(
         'Programming Language :: Python :: 3.5',
     ],
     package_data={
-        'bcmproteomics': ['training-data/*.txt'],
+        'bcmproteomics': ['training_data/*.txt'],
     },
 )
 
