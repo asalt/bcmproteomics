@@ -6,7 +6,7 @@ def read(fname):
 
 setup(
     name = 'bcmproteomics',
-    version = '0.0.2',
+    version = '0.0.3',
     author = 'Alex Saltzman',
     author_email = 'saltzman@bcm.edu',
     description = 'A library for conveniently grabbing data from BCM_Proteomics iSPEC',
@@ -20,8 +20,12 @@ setup(
         'Development Status :: 3 - Alpha',
         'Topic :: Utilities',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.4'        
-    ],    
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+    ],
+    package_data={
+        'bcmproteomics': ['training-data/*.txt'],
+    },
 )
 
 

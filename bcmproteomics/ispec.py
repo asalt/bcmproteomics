@@ -1,16 +1,19 @@
- # Alex Saltzman
+"""Functions and classes used for querying and manipulating data in
+ BCM Proteomics iSPEC.
+
+"""
 from __future__ import print_function
 import pandas as pd
 from collections import OrderedDict
 import pyodbc
 from getpass import getpass
 from .e2gitems import e2gcolumns
+from .classify import score_experiments
 
 user = None
 pw   = None
 url  = None
 params = {'user': user, 'pw': pw, 'url': url}
-
 
 
 class E2G:
@@ -42,10 +45,10 @@ class E2G:
     ----------
     
     Multiple E2G instances can be joined using join_exps:
-    >>> import BCM_proteomics as BCM
-    >>> exp1 = BCM.E2G(12345,1)
-    >>> exp2 = BCM.E2G(12345,2)
-    >>> exp1_2 = BCM.join_exps(exp1, exp2)
+    >>> from bcmproteomcs import ispec
+    >>> exp1 = ispec.E2G(12345,1)
+    >>> exp2 = ispec.E2G(12345,2)
+    >>> exp1_2 = ispec.join_exps(exp1, exp2)
 
     note that many methods on E2G are (currently) unavailable with a joined E2G instance
     ----------
@@ -88,7 +91,6 @@ class E2G:
         if isinstance(conn, str):
             return # failed to make connection, user is informed in filedb_connect()
 
-        
         sql = ("SELECT {} from iSPEC_BCM.iSPEC_exp2gene where "
                "e2g_EXPRecNo={} "
                "AND e2g_EXPRunNo={} "
@@ -96,7 +98,7 @@ class E2G:
                                                 recno,
                                                 runno,
                                                 searchno)
-               
+
         self._df = self._construct_df(sql, conn)
         sql_description = "SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Extract_Treatment, exp_IDENTIFIER, " \
                           "exp_Extract_Genotype, exp_AddedBy from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}".format(recno)
@@ -114,6 +116,8 @@ class E2G:
 
     @staticmethod
     def _construct_df(sql, conn):
+        """Construct a pandas dataframe from data in the iSPEC.
+        """
         df = pd.read_sql(sql, conn, index_col='e2g_GeneID')
         df.rename(columns={k: k.split('e2g_')[1] for k in 
                [e2gcol for e2gcol in df.columns if e2gcol.startswith('e2g_')]},
@@ -163,19 +167,18 @@ class E2G:
 
     @property
     def tfs(self):
-        """Return gene products annotated as a DBTF""" 
+        """Return gene products annotated as a DBTF"""
         return self.df[self.df['FunCats'].str.contains('DBTF')]
                        
     @property
     def kinases(self):
-        """Return gene products annotated as a kinase""" 
+        """Return gene products annotated as a kinase"""
         return self.df[self.df['FunCats'].str.contains('KI')]
 
     def summary(self):
         """Print out a quick summary of the types of gene products observed in the experiment.
         """
 
-        
         if self._joined:
             raise NotImplementedError('Cannot get a summary of a joined experiment yet!')
         if len(self._df)==0:
@@ -204,7 +207,6 @@ class E2G:
             print('Total {} strict gene products found : {}'\
                   '\n\tiBAQ total : {:4f}.'.format(s, len(df_sub_strict),
                                                 df_sub_strict.iBAQ_dstrAdj.sum()))
-    
 
 def _getlogin() :
     """Checks if the username and password have been established for the current python session.
@@ -247,7 +249,7 @@ def filedb_connect():
     login_info = 'UID={user};PWD={pw}'.format(**params)
 
     server_info = 'SERVER={url};'.format(**params)
-    
+  
     try:
         conn = pyodbc.connect('DRIVER={FileMaker ODBC};'+server_info+'DATABASE=iSPEC_BCM;'+login_info)
     except pyodbc.Error as e:  # any ODBC error is returned to python as "Error"
@@ -287,7 +289,7 @@ def get_funcats(geneidlist):
                "gene_FunCats " \
                "from iSPEC_BCM.iSPEC_Genes "\
                "where gene_GeneID in ({})".format(', '.join(geneidlist))
-    
+
     genedf = pd.read_sql(genesql, conn, index_col='gene_GeneID')  # all headers start with gene_
     generename = {c: c.split('gene_')[1] for c in genedf.columns}
     genedf.rename(columns=generename, inplace=True)
@@ -300,8 +302,9 @@ def get_funcats(geneidlist):
 
 def get_geneids(taxonid):
     """Get all gene ids for a given taxon"""
-    if type(taxonid) is not int:
-        try: taxonid = int(taxonid.strip())
+    if not isinstance(taxonid, int):
+        try:
+            taxonid = int(taxonid.strip())
         except:
             raise TypeError('Input must be a taxon id')
 
@@ -341,8 +344,7 @@ def join_exps(exp1, exp2):
                                           lsuffix = '_x', rsuffix='_y',
                                           how='outer', )
     joinexp._df = joinexp._df.join(funcats, how='left')
-    joinexp._df['GeneID'] = [str(int(x)) for x in joinexp._df.index.tolist()] # for convienence
+    joinexp._df['GeneID'] = [str(int(x)) for x in joinexp.df.index.tolist()] # for convienence
     joinexp._joined = True
-
+    score_experiments(joinexp)
     return joinexp
-    
