@@ -7,8 +7,8 @@ import pandas as pd
 from collections import OrderedDict
 import pyodbc
 from getpass import getpass
-from e2gitems import e2gcolumns
-from classify import score_experiments
+from .e2gitems import e2gcolumns
+from .classify import score_experiments
 
 user = None
 pw   = None
