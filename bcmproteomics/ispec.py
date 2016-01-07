@@ -7,8 +7,8 @@ import pandas as pd
 from collections import OrderedDict
 import pyodbc
 from getpass import getpass
-from .e2gitems import e2gcolumns
-from .classify import score_experiments
+from e2gitems import e2gcolumns
+from classify import score_experiments
 
 user = None
 pw   = None
@@ -35,7 +35,7 @@ class E2G:
 
     genotype : genotype for the experiment
     ----------
-    
+
     Initialize a new experiment object and grab your data:
     >>> import BCM_proteomics as BCM
     >>> BCM.user = 'username'
@@ -43,7 +43,7 @@ class E2G:
     >>> exp = BCM.E2G(recno=12345, runno=1) # note runno defaults to 1
 
     ----------
-    
+
     Multiple E2G instances can be joined using join_exps:
     >>> from bcmproteomcs import ispec
     >>> exp1 = ispec.E2G(12345,1)
@@ -104,9 +104,10 @@ class E2G:
                           "exp_Extract_Genotype, exp_AddedBy from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}".format(recno)
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
         conn.close()
-        self.sample = ''.join(info['exp_Extract_CellTissue']) 
-        self.treatment = ''.join(info['exp_Extract_Treatment'])
-        self.exptype = ''.join(info['exp_EXPClass'])
+        print(info.get('exp_Extract_CellTissue','hahahaah!:) kreygasm'))
+        self.sample = ''.join(info.get('exp_Extract_CellTissue','')) 
+        self.treatment = ''.join(info.get('exp_Extract_Treatment',''))
+        self.exptype = ''.join(info.get('exp_EXPClass',''))
         self.genotype = ''.join(info['exp_Extract_Genotype'])
         self.added_by = ''.join(info['exp_AddedBy'])
         self.recno = recno
@@ -346,5 +347,9 @@ def join_exps(exp1, exp2):
     joinexp._df = joinexp._df.join(funcats, how='left')
     joinexp._df['GeneID'] = [str(int(x)) for x in joinexp.df.index.tolist()] # for convienence
     joinexp._joined = True
-    score_experiments(joinexp)
+    try :
+        score_experiments(joinexp)
+    except Exception as e:
+        print('Error scoring experiments')
+        print(e)
     return joinexp
