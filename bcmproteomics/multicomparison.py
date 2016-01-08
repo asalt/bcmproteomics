@@ -145,6 +145,12 @@ def _expconstructor(ctrls=None, samples=None):
     ctrls = [(x,1,1) for x in ctrls if not isinstance(x,tuple)]
     samples = [(x,1,1) for x in samples if not isinstance(x,tuple)]
     ctrl_e2gs = []
+    conn = bcm.filedb_connect()
+    if isinstance(conn, str):
+        print('Unable to connect to iSPEC')
+        print(conn)
+        return None
+    print('Loading data from iSPEC, please wait...')
     for ctrl in ctrls:
         exp = ispec.E2G(*ctrl)
         if len(exp.df) != 0: # only pick exps that have data!
@@ -206,7 +212,7 @@ def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=
         print('Both input lists must have at least 1 experiment!')
         return
 
-    print('Loading data from iSPEC, please wait...')
+
     pairs = _expconstructor(ctrls, samples)
     if not pairs:
         print('No pairs of experiments to compare!')
@@ -215,5 +221,5 @@ def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=
     if description is None:
         description = datetime.ctime(datetime.now())
 
-    up_df, down_df = _main(pairs, tnormalize=taxon_normalize, desc=description,)
+    up_df, down_df = _main(pairs, tnormalize=taxon_normalize, desc=description, seed=seed)
     return (up_df, down_df)
