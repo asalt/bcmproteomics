@@ -4,11 +4,11 @@ from os import path
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-def score_experiments(exp1_2):
+def score_experiments(exp1_2, seed=None):
     """Classify gene products from joined E2G files
     based on supervised machine learning algorithm random forest"""
 
-    clf = classifier_training(merge_cats=True, subsample=True, seed=42)
+    clf = classifier_training(merge_cats=True, subsample=True, seed=seed)
     features, df_all = feature_grabber(exp1_2.df)
     df_all['USD'], df_all['USD_prob'] = clf.predict(features),\
                                         np.max(clf.predict_proba(features), axis=1,
@@ -103,7 +103,7 @@ def e2g_col_renamer(df, returndf=True):
     if returndf:
         return df
 
-def get_training_data(merge_cats=True, subsample=True, seed=42):
+def get_training_data(merge_cats=True, subsample=True, seed=None):
     ''' get training data'''
     training_dir = path.join(path.dirname(__file__), 'training_data')
 
@@ -128,7 +128,7 @@ def get_training_data(merge_cats=True, subsample=True, seed=42):
         df1 = e2g_col_renamer(df1)
         df2 = e2g_col_renamer(df2)
 
-        df_labels = pd.read_table(path.join(training_dir,train_data))
+        df_labels = pd.read_table(path.join(training_dir, train_data))
         df_labels['USD'] = df_labels.USD.astype('category', categories=['DD','D','S','SS','U','UU'],
                                                 ordered=True)
         if merge_cats:
@@ -167,8 +167,8 @@ def classifier_training(merge_cats=True, subsample=True, seed=None):
             max_depth=6, max_features=None, max_leaf_nodes=None,
             min_samples_leaf=1, min_samples_split=6,
             min_weight_fraction_leaf=0.0, n_estimators=10, n_jobs=1,
-            oob_score=False, random_state=None, verbose=0,
-            warm_start=False)
+            oob_score=False, random_state=seed, verbose=0,
+                                 warm_start=False)
     features, labels, df = get_training_data(merge_cats=merge_cats, subsample=subsample, seed=seed)
     clf.fit(features, labels)
     return clf

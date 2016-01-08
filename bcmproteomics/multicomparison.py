@@ -53,23 +53,24 @@ def _taxon_normalizer(df, ratio):
         r = 10**-3  # avoid divide by zero error
     return df[area]/r
 
-def _main(comparisons, tnormalize=None, desc=''):
+def _main(comparisons, tnormalize=None, desc='', seed=None):
     """Perform pairwise comparisons across multiple experiments. An average ranking
     of each gene is calculated
     """
     if tnormalize is not None:
         _get_genelists()
 
+    up_genes, down_genes = defaultdict(lambda :
+                                       defaultdict(list)), defaultdict(lambda :
+                                                                       defaultdict(list))
+
     dtype_dict={'e2g_GeneID': object, 'GeneID': object}
     for exps in comparisons:
-        up_genes, down_genes = defaultdict(lambda :
-                                           defaultdict(list)), defaultdict(lambda :
-                                                                           defaultdict(list))
         exp_counter = len(comparisons)
         ctrl = exps[0]
         treat = exps[1]
         print('Processing {} vs {}'.format(ctrl, treat))
-        
+ 
         if tnormalize:
             for exp in [ctrl, treat]:
                 exp_ratio = tnormalize[exp.recno]
@@ -78,7 +79,7 @@ def _main(comparisons, tnormalize=None, desc=''):
                 exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_old'}, inplace=True)
                 exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, inplace=True)
 
-        exp_join = ispec.join_exps(ctrl, treat)  # automatically does the machine learning
+        exp_join = ispec.join_exps(ctrl, treat, seed=seed)  # automatically does the machine learning
         if 'USD' not in exp_join.df.columns:
             continue
         
@@ -161,7 +162,7 @@ def _expconstructor(ctrls=None, samples=None):
     pairs = [(ctrl, sample) for ctrl, sample in itertools.product(ctrl_e2gs, sample_e2gs)]
     return pairs
 
-def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=None):
+def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=None, seed=None):
     """Function to run combinations of pairwise comparisons of experimental results located
     in an iSPEC database. Returns two pandas dataframes, the first containing all gene products
     found be considered up in the second group at least once and the second containing all
@@ -190,6 +191,9 @@ def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=
         mouse ratio of 0.6.
         Note that if taxon_normalize is used, an entry for each
         experiment record must be included.
+
+    seed : (optional) sets seed for random forest classifier.
+
     ----------
     Example:
     >> ctrls = [(12345,1,1), (12345,2,1)]

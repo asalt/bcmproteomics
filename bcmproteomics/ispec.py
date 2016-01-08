@@ -104,7 +104,6 @@ class E2G:
                           "exp_Extract_Genotype, exp_AddedBy from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}".format(recno)
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
         conn.close()
-        print(info.get('exp_Extract_CellTissue','hahahaah!:) kreygasm'))
         self.sample = ''.join(info.get('exp_Extract_CellTissue','')) 
         self.treatment = ''.join(info.get('exp_Extract_Treatment',''))
         self.exptype = ''.join(info.get('exp_EXPClass',''))
@@ -319,9 +318,11 @@ def get_geneids(taxonid):
     genes = [int(g) for gid in gids for g in gid]
     return genes
 
-def join_exps(exp1, exp2):
+def join_exps(exp1, exp2, seed=None):
     """Nice outer join two experiments based on their geneids. Useful for comparing between experiments.
     Keeps gene information as well.
+    
+    Optional seed argument sets seed for random forest classifier.
     """
     if any(type(exp) is not E2G for exp in [exp1, exp2]):
         raise  TypeError('Incorrect input type')
@@ -348,7 +349,7 @@ def join_exps(exp1, exp2):
     joinexp._df['GeneID'] = [str(int(x)) for x in joinexp.df.index.tolist()] # for convienence
     joinexp._joined = True
     try :
-        score_experiments(joinexp)
+        score_experiments(joinexp, seed=seed)
     except Exception as e:
         print('Error scoring experiments')
         print(e)
