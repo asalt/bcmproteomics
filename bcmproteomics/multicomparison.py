@@ -206,6 +206,7 @@ def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=
         print('Both input lists must have at least 1 experiment!')
         return
 
+    print('Loading data from iSPEC, please wait...')
     pairs = _expconstructor(ctrls, samples)
     if not pairs:
         print('No pairs of experiments to compare!')

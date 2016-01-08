@@ -3,6 +3,9 @@
 from os import path
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.cross_validation import train_test_split
+from sklearn.metrics import confusion_matrix
 from sklearn.ensemble import RandomForestClassifier
 def score_experiments(exp1_2, seed=None):
     """Classify gene products from joined E2G files
@@ -103,7 +106,7 @@ def e2g_col_renamer(df, returndf=True):
     if returndf:
         return df
 
-def get_training_data(merge_cats=True, subsample=True, seed=None):
+def get_training_data(merge_cats=True, subsample=True):
     ''' get training data'''
     training_dir = path.join(path.dirname(__file__), 'training_data')
 
@@ -162,14 +165,79 @@ def get_training_data(merge_cats=True, subsample=True, seed=None):
     # Data wrangling complete
     return features, labels, df
 
-def classifier_training(merge_cats=True, subsample=True, seed=None):
+def get_classifier(seed=None):
     clf = RandomForestClassifier(bootstrap=True, class_weight=None, criterion='entropy',
             max_depth=6, max_features=None, max_leaf_nodes=None,
             min_samples_leaf=1, min_samples_split=6,
             min_weight_fraction_leaf=0.0, n_estimators=10, n_jobs=1,
             oob_score=False, random_state=seed, verbose=0,
                                  warm_start=False)
-    features, labels, df = get_training_data(merge_cats=merge_cats, subsample=subsample, seed=seed)
+    return clf
+
+def classifier_training(merge_cats=True, subsample=True, seed=None):
+
+    clf = get_classifier(seed=seed)
+    features, labels, df = get_training_data(merge_cats=merge_cats, subsample=subsample)
     clf.fit(features, labels)
     return clf
 
+
+def plot_confusion_matrix(cm, labels, title='Confusion matrix', cmap=plt.cm.Blues):
+    """ Takes in your n by n dimensional confusion matrix, the appropriate labels, 
+    and optional title and color map.
+    Default uses matplotlib imported as plt"""
+    
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(labels))
+    plt.xticks(tick_marks, labels, rotation=45)
+    plt.yticks(tick_marks, labels)
+    #plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.show()
+
+
+def _average_class_accuracy(clf,features,labels, n=None, plot=False, seed=None, cats=None):
+    '''calculates and prints an average confusion matrix from the given trained classifier clf'''
+    if n is None:
+        n = 200
+    if seed is not None:
+        print('Warning, seed is fixed, results from each iteration will be identical.')
+
+    cm_matrices, tot_acc = [], []
+    for _ in range(n):
+        features_train, features_test, labels_train, labels_test = \
+        train_test_split(features, labels, test_size=0.33, random_state=seed)
+        clf.fit(features_train, labels_train)
+        y_true, y_pred = labels_test, clf.predict(features_test)
+        # make a normalized confusion matrix
+        cm = confusion_matrix(y_true, y_pred)
+        cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        #print(x,cm_normalized)
+        cm_matrices.append(cm_normalized)
+        tot_acc.append(clf.score(features_test, labels_test))
+    cm_normalized = np.mean(np.array(cm_matrices), axis=0)
+    mean_acc = np.mean(tot_acc)
+    np.set_printoptions(formatter={'float': lambda x: "{0:0.4f}".format(x)})
+    print('Average accuracy is : {}'.format(mean_acc))
+    print()
+    print('Normalized confusion matrix')
+    print(cm_normalized)
+    if plot:
+        if cats is None:
+            cats = [str(i+1) for i in range(len(cm_normalized))]
+        plot_confusion_matrix(cm_normalized, labels=cats,
+                              title='Normalized confusion matrix')
+    return cm_normalized
+
+def test_training_data(plot=False, n=None, seed=None):
+    """Test the current training data set to see its performance.
+    """
+    clf = get_classifier(seed=seed)
+    features, labels, df = get_training_data(merge_cats=True, subsample=True)
+    categories = df.USD.cat.categories.tolist()
+    cm = _average_class_accuracy(clf, features, labels, n=n, seed=seed,
+                                 plot=plot, cats=categories)
+    return cm
