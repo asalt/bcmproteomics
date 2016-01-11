@@ -14,7 +14,7 @@ setup(
     url = 'https://github.com/asalt/bcmproteomics',
     long_description = read('README.md'),
     packages=find_packages(),
-    install_requires=['pandas', 'pyodbc'],
+    install_requires=['pyodbc'],
     keywords=['bioinformatics', 'data wrangling'],
     classifiers=[
         'Development Status :: 3 - Alpha',
