@@ -1,5 +1,5 @@
 """Functions and classes used for querying and manipulating data in
- BCM Proteomics iSPEC.
+BCM Proteomics iSPEC.
 
 """
 from __future__ import print_function
@@ -7,13 +7,14 @@ import pandas as pd
 from collections import OrderedDict
 import pyodbc
 from getpass import getpass
-from .e2gitems import e2gcolumns
-from .classify import score_experiments
+from bcmproteomics.e2gitems import e2gcolumns
+from bcmproteomics.classify import score_experiments
 
 user = None
 pw   = None
 url  = None
-params = {'user': user, 'pw': pw, 'url': url}
+database = None
+params = {'user': user, 'pw': pw, 'url': url, 'database': database}
 
 
 class E2G:
@@ -128,7 +129,6 @@ class E2G:
         df.index.rename('GeneID',inplace=True)
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
         geneidlist = [str(int(x)) for x in df.index.tolist()]
-        #geneidlist = [str(int(x)) for x in df.GeneID.tolist()]        
         genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
                    "gene_GeneSymbol, gene_GeneDescription, "\
                    "gene_FunCats " \
@@ -153,7 +153,9 @@ class E2G:
         """Returns a strict selection of gene products from the dataframe"""
 
         if self._joined:
-                    raise NotImplementedError('Cannot get a summary of a joined experiment yet!')
+            return df[((df['IDSet_x'] < 3) & (df['IDGroup_x'] <= 3) |
+                      (df['IDSet_y'] < 3) & (df['IDGroup_y'] <= 3))]
+                       
         if df is None:
             df = self.df
             
@@ -175,40 +177,76 @@ class E2G:
         """Return gene products annotated as a kinase"""
         return self.df[self.df['FunCats'].str.contains('KI')]
 
+    def USD_selector(self, df=None):
+        """Returns U, S, D DataFrames for a joined E2G instance"""
+        if self._joined is False:
+            raise ValueError('Not a joined E2G instance.')
+        if df is None:
+            df = self.df
+        ret = list()
+        for cat in list('USD'):
+            ret.append(df[df.USD == cat])
+        return ret
+
     def summary(self):
         """Print out a quick summary of the types of gene products observed in the experiment.
         """
 
-        if self._joined:
-            raise NotImplementedError('Cannot get a summary of a joined experiment yet!')
-        if len(self._df)==0:
+        if len(self._df) == 0:
             raise ValueError('DataFrame is empty!')
-    
+
         searchstr = OrderedDict({'TFs': 'DBTF',
                                  'Tfs and CoRs': 'DBTF|TC|DBTC|CBTC',
+                                 'Kinases': 'KI',
                                  }
                                 )
+        print('\nSummary for record {}, run {}.\n'.format(self.recno, self.runno, ))
 
-        print('\nSummary for record {}, run {}.'.format(self.recno, self.runno, ))
+        if self._joined:    
+            dfU, dfS, dfD = self.USD_selector()
+            print('Total gene products found : '
+                  '{} same, {} up, {} down'.format(len(dfS), len(dfU), len(dfD)))
+            print('Total strict gene products found : '
+                  '{} same, {} up, {} down'.format(len(self.strict(dfS)),
+                                                   len(self.strict(dfU)),
+                                                   len(self.strict(dfD))))
+            print('-'*15,'\n')
+            for s in searchstr:
+                df_subsection = self.df[(self.df['FunCats'].str.contains(searchstr[s]))]
+                dfU, dfS, dfD = self.USD_selector(df_subsection)
+                print('Total {} gene products found : '
+                      '{} same, {} up, {} down'.format(s, len(dfS), len(dfU), len(dfD)))
+                print('Total {} strict gene products found : '
+                      '{} same, {} up, {} down'.format(s,
+                                                       len(self.strict(dfS)),
+                                                       len(self.strict(dfU)),
+                                                       len(self.strict(dfD))))
+                print('-'*15,'\n')
+            return
+
         print('Total gene products found : {}'\
               '\n\tiBAQ total : {:4f}.'.format(len(self._df),  self._df.iBAQ_dstrAdj.sum()))
 
         df_strict = self.strict()
         print('Total strict gene products found : {}'\
               '\n\tiBAQ total : {:4f}.'.format(len(df_strict),
-                                            df_strict.iBAQ_dstrAdj.sum()))
+                                               df_strict.iBAQ_dstrAdj.sum()))
+        print('-'*15,'\n')
         for s in searchstr:
             df_subsection = self.df[(self.df['FunCats'].str.contains(searchstr[s]))]
             print('Total {} gene products found : {}'\
                   '\n\tiBAQ total : {:4f}'.format(s, len(df_subsection),
-                                               df_subsection.iBAQ_dstrAdj.sum()))
-            
-            df_sub_strict = df_subsection[(df_subsection.IDSet < 3) & (df_subsection.IDGroup < 4)]
+                                                  df_subsection.iBAQ_dstrAdj.sum()))
+
+            df_sub_strict = self.strict(df_subsection)
             print('Total {} strict gene products found : {}'\
                   '\n\tiBAQ total : {:4f}.'.format(s, len(df_sub_strict),
-                                                df_sub_strict.iBAQ_dstrAdj.sum()))
+                                                   df_sub_strict.iBAQ_dstrAdj.sum()))
+            print('-'*15,'\n')
 
-def _getlogin() :
+
+
+def _getlogin():
     """Checks if the username and password have been established for the current python session.
     If username or password is undefined, will prompt the user.
 
@@ -217,6 +255,9 @@ def _getlogin() :
     servers = {'bcmproteomics': '10.16.2.74',
                'jun lab': '10.13.14.171',
                }
+    databases = {'10.16.2.74': ['iSPEC_BCM', 'iSPEC_BCM_psms'],
+                 '10.13.14.171': ['iSPEC'],
+                 }
     if params.get('user') is None:
         print('Username is not set')
         user = input('Enter your iSPEC username : ')
@@ -232,7 +273,17 @@ def _getlogin() :
         params['url'] = servers.get(server, '10.16.2.74')
     elif 'url' in params:
         params['url'] = servers.get(url, '10.16.2.74')
-        
+
+    if params.get('database') is None:
+        server_url = params['url']
+        if len(databases.get(server_url, [])) == 1:
+            params['database'] = databases[server][0]
+        else:
+            print('iSPEC database is not set, the options are:')
+            print(*[database for database in databases[server_url]], sep='\t')
+            db = input('Select an iSPEC database: ').strip()
+            params['database'] = databases.get(db, 'iSPEC_BCM')
+
     return params
 
 def filedb_connect():
@@ -246,12 +297,17 @@ def filedb_connect():
     
     params = _getlogin()
 
+    driver    = 'DRIVER={FileMaker ODBC};'
+
     login_info = 'UID={user};PWD={pw}'.format(**params)
 
     server_info = 'SERVER={url};'.format(**params)
-  
+
+    database_info = 'DATABASE={database};'.format(**params)
+
+    conn_string = "{0}{1}{2}{3}".format(driver, server_info, database_info, login_info)
     try:
-        conn = pyodbc.connect('DRIVER={FileMaker ODBC};'+server_info+'DATABASE=iSPEC_BCM;'+login_info)
+        conn = pyodbc.connect(conn_string)
     except pyodbc.Error as e:  # any ODBC error is returned to python as "Error"
         error = e.__str__()
         if 'password incorrect' in error.lower():
@@ -277,7 +333,7 @@ def get_funcats(geneidlist):
     The funcats column of the DataFrame has had each null value filled with an empty string, 
     which allows for easy string searching with pandas.
     """
-    if type(geneidlist) is not list or len(geneidlist) == 0:
+    if not isinstance(geneidlist, list) or len(geneidlist) == 0:
         raise TypeError('Input must be a list with at least 1 element')
     # need to make sure every element in the geneidlist is a string
     conn = filedb_connect()

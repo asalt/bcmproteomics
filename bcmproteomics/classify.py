@@ -4,6 +4,7 @@ from os import path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from sklearn.cross_validation import train_test_split
 from sklearn.metrics import confusion_matrix
 from sklearn.ensemble import RandomForestClassifier
@@ -182,12 +183,14 @@ def classifier_training(merge_cats=True, subsample=True, seed=None):
     return clf
 
 
-def plot_confusion_matrix(cm, labels, title='Confusion matrix', cmap=plt.cm.Blues):
+def plot_confusion_matrix(cm, labels, title='Confusion matrix', cmap=plt.cm.Blues, savefig=False, figname=None,
+                          **kwargs):
     """ Takes in your n by n dimensional confusion matrix, the appropriate labels, 
     and optional title and color map.
     Default uses matplotlib imported as plt"""
     
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    print(labels)
     plt.title(title)
     plt.colorbar()
     tick_marks = np.arange(len(labels))
@@ -196,10 +199,67 @@ def plot_confusion_matrix(cm, labels, title='Confusion matrix', cmap=plt.cm.Blue
     #plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.show()
+    plt.tick_params(axis='both',
+                    bottom='off',
+                    top='off',
+                    left='off',
+                    right='off',
+                    )
+    if savefig:
+            plt.savefig(figname, **kwargs)
+            print('Saving figure : ', figname)
+    else:
+        plt.show()
 
+def _feature_importance(forest, features=None, plot=False, savefig=False, figname=None, **kwargs):
+    """Takes in a trained forest classifier.
+    Returns feature importances and makes a nice plot if requested.
+    -----
 
-def _average_class_accuracy(clf,features,labels, n=None, plot=False, seed=None, cats=None):
+    Taken from :
+    http://scikit-learn.org/stable/auto_examples/ensemble/plot_forest_importances.html
+    """
+    importances = forest.feature_importances_  #returns NotFittedError if not fitted yet
+    std = np.std([tree.feature_importances_ for tree in forest.estimators_],
+                 axis=0)
+    indices = np.argsort(importances)
+    if features is not None:
+        labels = [features[i] for i in indices]
+    else:
+        labels = indices
+    # Print the feature ranking
+    print("Feature ranking:")
+    for f in range(X.shape[1]):
+        print("{}. feature {} ({:.4f})".format(f + 1, labels[f], importances[indices[f]]))
+    if plot:
+        cmap = cm.Set1
+        c = [cmap(n/12) for n in range(1,12)]
+        #c.reverse()
+        fig, ax = plt.subplots()
+        ax.set_title = ("Feature import ances")
+        ax.barh(range(X.shape[1]), importances[indices],
+                color=c[2], xerr=std[indices], align='center',
+                alpha=0.5)
+        ax.set_yticks(range(X.shape[1]))
+        ax.set_yticklabels(labels)
+        ax.set_ylim([-1, X.shape[1]])
+        ax.set_xlabel('Feature importance')
+
+        xlim = ax.get_xlim()
+        ax.set_xlim([0,xlim[1]]) # force xmin to be 0.0
+        ax.xaxis.set_ticks_position('bottom')
+        ax.tick_params(axis='x', direction='out', width=1) # set width equal to spine width
+
+        ax.yaxis.set_ticks_position('none')
+        ax.yaxis.labelpad = 20
+        ax.tick_params(axis='y', pad=15)  # so not too close to spine
+        
+        for spine in ['top', 'right',]:
+            ax.spines[spine].set_visible(False)
+        if savefig:
+            plt.savefig(figname, **kwargs)
+
+def _average_class_accuracy(clf,features,labels, n=None, plot=False, seed=None, cats=None, savefig=False, figname=None, **kwargs):
     '''calculates and prints an average confusion matrix from the given trained classifier clf'''
     if n is None:
         n = 200
@@ -229,7 +289,10 @@ def _average_class_accuracy(clf,features,labels, n=None, plot=False, seed=None, 
         if cats is None:
             cats = [str(i+1) for i in range(len(cm_normalized))]
         plot_confusion_matrix(cm_normalized, labels=cats,
-                              title='Normalized confusion matrix')
+                              title='Normalized confusion matrix',
+                              savefig=savefig, figname=figname,
+                              **kwargs)
+
     return cm_normalized
 
 def test_training_data(plot=False, n=None, seed=None):
@@ -240,4 +303,7 @@ def test_training_data(plot=False, n=None, seed=None):
     categories = df.USD.cat.categories.tolist()
     cm = _average_class_accuracy(clf, features, labels, n=n, seed=seed,
                                  plot=plot, cats=categories)
+    feature_cols = ['PSMs', 'IDSet', 'IDGroup', 'Peptide\nCount_S',
+                    'Peptide\nCount_u2g', 'iBAQ\ndstrAdj']  # modify here to change features
+    _feature_importance(clf, feature_cols)
     return cm
