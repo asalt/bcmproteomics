@@ -417,7 +417,7 @@ def join_exps(exp1, exp2, seed=None):
                                           lsuffix = '_x', rsuffix='_y',
                                           how='outer', )
     joinexp._df = joinexp._df.join(funcats, how='left')
-    joinexp._df['GeneID'] = [str(int(x)) for x in joinexp.df.index.tolist()] # for convienence
+    joinexp._df['GeneID'] = [str(int(x)) for x in joinexp.df.index if not np.isnan(x)] # for convienence
     joinexp._joined = True
     try :
         score_experiments(joinexp, seed=seed)
