@@ -3,6 +3,7 @@ BCM Proteomics iSPEC.
 
 """
 from __future__ import print_function
+import numpy as np
 import pandas as pd
 from collections import OrderedDict
 import pyodbc
@@ -106,14 +107,15 @@ class E2G:
                            "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
                            "from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}").format(recno)
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
-        self.sample = ''.join(info.get('exp_Extract_CellTissue', ''))
-        self.treatment = ''.join(info.get('exp_Extract_Treatment', ''))
-        self.exptype = ''.join(info.get('exp_EXPClass', ''))
-        self.genotype = ''.join(info.get('exp_Extract_Genotype', ''))
-        self.added_by = ''.join(info.get('exp_AddedBy', ''))
-        self.digest_type = ''.join(info.get('exp_Digest_Type', ''))
-        self.digest_enzyme = ''.join(info.get('exp_Digest_Enzyme', ''))
-        self.extract_no = int(info.get('exp_Extract_No', 0)[0])
+        self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
+        self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
+        self.exptype = ''.join(item for item in info.get('exp_EXPClass', '') if item)
+        self.genotype = ''.join(item for item in info.get('exp_Extract_Genotype', '') if item)
+        self.added_by = ''.join(item for item in info.get('exp_AddedBy', '') if item)
+        self.digest_type = ''.join(item for item in info.get('exp_Digest_Type', '') if item)
+        self.digest_enzyme = ''.join(item for item in info.get('exp_Digest_Enzyme', '') if item)
+        print( ''.join(int(item) for item in info.get('exp_Extract_No', 0) if str(item).isdigit()))
+        self.extract_no = ''.join(str(item) for item in info.get('exp_Extract_No', 0) if item)
         self.recno = recno
         self.runno = runno
         self.searchno = searchno
@@ -141,7 +143,7 @@ class E2G:
 
         df.index.rename('GeneID',inplace=True)
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
-        geneidlist = [str(int(x)) for x in df.index.tolist()]
+        geneidlist = [str(int(x)) for x in df.index.tolist() if not np.isnan(x)]
         genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
                    "gene_GeneSymbol, gene_GeneDescription, "\
                    "gene_FunCats " \
