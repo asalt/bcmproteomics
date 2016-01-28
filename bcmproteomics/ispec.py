@@ -101,18 +101,31 @@ class E2G:
                                                 searchno)
 
         self._df = self._construct_df(sql, conn)
-        sql_description = "SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Extract_Treatment, exp_IDENTIFIER, " \
-                          "exp_Extract_Genotype, exp_AddedBy from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}".format(recno)
+        sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, "
+                           "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
+                           "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
+                           "from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}").format(recno)
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
-        conn.close()
-        self.sample = ''.join(info.get('exp_Extract_CellTissue','')) 
-        self.treatment = ''.join(info.get('exp_Extract_Treatment',''))
-        self.exptype = ''.join(info.get('exp_EXPClass',''))
-        self.genotype = ''.join(info['exp_Extract_Genotype'])
-        self.added_by = ''.join(info['exp_AddedBy'])
+        self.sample = ''.join(info.get('exp_Extract_CellTissue', ''))
+        self.treatment = ''.join(info.get('exp_Extract_Treatment', ''))
+        self.exptype = ''.join(info.get('exp_EXPClass', ''))
+        self.genotype = ''.join(info.get('exp_Extract_Genotype', ''))
+        self.added_by = ''.join(info.get('exp_AddedBy', ''))
+        self.digest_type = ''.join(info.get('exp_Digest_Type', ''))
+        self.digest_enzyme = ''.join(info.get('exp_Digest_Enzyme', ''))
+        self.extract_no = int(info.get('exp_Extract_No', 0)[0])
         self.recno = recno
         self.runno = runno
         self.searchno = searchno
+
+        if self.extract_no:
+            sql_extractdata = ("SELECT ext_Fractions, ext_Protocol FROM "
+                               "iSPEC_BCM.iSPEC_Extracts "
+                               "WHERE ext_ExtRecNo={}").format(self.extract_no)
+            extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
+            self.extract_fractions = ''.join(extract_info.get('ext_Fractions', ''))
+            self.extract_protocol = ''.join(extract_info.get('ext_Protocol', '')).replace('\r', ', ')
+        conn.close()
         return self
 
     @staticmethod
