@@ -4,8 +4,7 @@ from datetime import datetime
 from collections import defaultdict
 import numpy as np
 import pandas as pd
-#from bcmproteomics import ispec
-import ispec
+from bcmproteomics import ispec
 
 def _get_genelists():
     """Need to grab these lists of genes once and only once
