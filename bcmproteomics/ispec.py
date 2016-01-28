@@ -359,7 +359,8 @@ def get_funcats(geneidlist):
                "gene_GeneSymbol, gene_GeneDescription, "\
                "gene_FunCats " \
                "from iSPEC_BCM.iSPEC_Genes "\
-               "where gene_GeneID in ({})".format(', '.join(geneidlist))
+               "where gene_GeneID in ({})".format(', '.join([str(x) for x in geneidlist]))
+                                                             
 
     genedf = pd.read_sql(genesql, conn, index_col='gene_GeneID')  # all headers start with gene_
     generename = {c: c.split('gene_')[1] for c in genedf.columns}
