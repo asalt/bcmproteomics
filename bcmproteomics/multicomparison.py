@@ -4,7 +4,8 @@ from datetime import datetime
 from collections import defaultdict
 import numpy as np
 import pandas as pd
-from bcmproteomics import ispec
+#from bcmproteomics import ispec
+import ispec
 
 def _get_genelists():
     """Need to grab these lists of genes once and only once
@@ -53,12 +54,12 @@ def _taxon_normalizer(df, ratio):
         r = 10**-3  # avoid divide by zero error
     return df[area]/r
 
-def _main(comparisons, tnormalize=None, desc='', seed=None):
+def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
     """Perform pairwise comparisons across multiple experiments. An average ranking
     of each gene is calculated
     """
     if tnormalize is not None:
-        _get_genelists()
+        _get_genelists()  # load into memory once and only once
 
     up_genes, down_genes = defaultdict(lambda :
                                        defaultdict(list)), defaultdict(lambda :
@@ -79,7 +80,8 @@ def _main(comparisons, tnormalize=None, desc='', seed=None):
                 exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_old'}, inplace=True)
                 exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, inplace=True)
 
-        exp_join = ispec.join_exps(ctrl, treat, seed=seed)  # automatically does the machine learning
+        exp_join = ispec.join_exps(ctrl, treat,
+                                   normalize=ibaqnorm, seed=seed)  # automatically does the machine learning
         if 'USD' not in exp_join.df.columns:
             continue
         
@@ -168,7 +170,8 @@ def _expconstructor(ctrls=None, samples=None):
     pairs = [(ctrl, sample) for ctrl, sample in itertools.product(ctrl_e2gs, sample_e2gs)]
     return pairs
 
-def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=None, seed=None):
+def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=None,
+                    taxon_normalize=None, seed=None):
     """Function to run combinations of pairwise comparisons of experimental results located
     in an iSPEC database. Returns two pandas dataframes, the first containing all gene products
     found be considered up in the second group at least once and the second containing all
@@ -187,6 +190,10 @@ def multicomparison(ctrls=None, samples=None, description=None, taxon_normalize=
         run and search numbers.
 
     description : (optional) description of the comparison. Defaults to today's date.
+
+    ibaq_normalize  : 'mean', 'median' or None (Optional)
+                      method of normalization of iBAQ_dstrAdj
+                      Has the side effect of adding ibaq_norm column to each input DataFrame.
 
     taxon_normalize : a dictionary which contains dictionaries of different taxon ratios
         for a given experiment

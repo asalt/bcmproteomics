@@ -70,6 +70,7 @@ class E2G:
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
+        self.ibaq_normalize = None
 
     def __repr__(self):
         return 'Record number {}, run number {}'.format(self.recno, self.runno)
@@ -390,15 +391,35 @@ def get_geneids(taxonid):
     genes = [int(g) for gid in gids for g in gid]
     return genes
 
-def join_exps(exp1, exp2, seed=None):
+def join_exps(exp1, exp2, normalize=None, seed=None):
     """Nice outer join two experiments based on their geneids. Useful for comparing between experiments.
     Keeps gene information as well.
     
+    Parameters
+    ----------
+    exp1, exp2 : non jonied E2G objects
+
+    normalize  : 'mean', 'median', or None (Optional)
+                  method of normalization of iBAQ_dstrAdj
+                  Has the side effect of adding ibaq_norm column to each input DataFrame.
+
+    seed       : set state for random forest classifier (Optional)
+
     Optional seed argument sets seed for random forest classifier.
     """
     if any(type(exp) is not E2G for exp in [exp1, exp2]):
         raise  TypeError('Incorrect input type')
+
     
+    if normalize is not None:
+        for exp in [exp1, exp2]:
+            if normalize.strip() == 'mean':
+                exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.mean()
+            elif normalize.strip() == 'median':
+                exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.median()
+            exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_raw'}, copy=True)
+            exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, copy=True)
+            
     funcat_cols = ['GeneCapacity', 'GeneSymbol', 'GeneDescription', 'FunCats', 'GeneID']
     funcat1 = exp1.df[funcat_cols]
     funcat2 = exp2.df[funcat_cols]
@@ -421,7 +442,8 @@ def join_exps(exp1, exp2, seed=None):
     joinexp._df['GeneID'] = [str(int(x)) if not np.isnan(x) else x
                              for x in joinexp.df.index] # for convienence
     joinexp._joined = True
-    try :
+    joinexp.ibaq_normalize = normalize
+    try:
         score_experiments(joinexp, seed=seed)
     except Exception as e:
         print('Error scoring experiments')
