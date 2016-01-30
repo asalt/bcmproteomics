@@ -56,6 +56,7 @@ class E2G:
     ----------
     """
     def __init__(self, recno=None, runno=None, searchno=None):
+        """Different metadata as well as data"""
         self.recno = recno
         self.runno = runno
         self.searchno = searchno
@@ -73,6 +74,7 @@ class E2G:
         self.ibaq_normalize = None
 
     def __repr__(self):
+        """Returns record and run number"""
         return 'Record number {}, run number {}'.format(self.recno, self.runno)
 
     @property
@@ -111,7 +113,8 @@ class E2G:
         self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
         self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
         self.exptype = ''.join(item for item in info.get('exp_EXPClass', '') if item)
-        self.description = [item for items in info['exp_Exp_Description'] for item in items.splitlines()]
+        self.description = [item for items in info.get('exp_Exp_Description', '')
+                            for item in (items.splitlines() if items else '')]
         self.genotype = ''.join(item for item in info.get('exp_Extract_Genotype', '') if item)
         self.added_by = ''.join(item for item in info.get('exp_AddedBy', '') if item)
         self.digest_type = ''.join(item for item in info.get('exp_Digest_Type', '') if item)
