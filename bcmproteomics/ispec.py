@@ -103,7 +103,7 @@ class E2G:
                                                 searchno)
 
         self._df = self._construct_df(sql, conn)
-        sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, "
+        sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
                            "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
                            "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
                            "from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}").format(recno)
@@ -111,11 +111,12 @@ class E2G:
         self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
         self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
         self.exptype = ''.join(item for item in info.get('exp_EXPClass', '') if item)
+        self.description = [item for items in info['exp_Exp_Description'] for item in items.splitlines()]
         self.genotype = ''.join(item for item in info.get('exp_Extract_Genotype', '') if item)
         self.added_by = ''.join(item for item in info.get('exp_AddedBy', '') if item)
         self.digest_type = ''.join(item for item in info.get('exp_Digest_Type', '') if item)
         self.digest_enzyme = ''.join(item for item in info.get('exp_Digest_Enzyme', '') if item)
-        print( ''.join(int(item) for item in info.get('exp_Extract_No', 0) if str(item).isdigit()))
+        #print( ''.join(int(item) for item in info.get('exp_Extract_No', 0) if str(item).isdigit()))
         self.extract_no = ''.join(str(item) for item in info.get('exp_Extract_No', 0) if item)
         self.recno = recno
         self.runno = runno
