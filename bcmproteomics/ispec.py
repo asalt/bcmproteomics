@@ -414,16 +414,21 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
     if any(type(exp) is not E2G for exp in [exp1, exp2]):
         raise  TypeError('Incorrect input type')
 
-    
+    for exp in [exp1, exp2]:
+        if 'iBAQ_dstrAdj_raw' in exp.df.columns:  # revert columns
+            exp.df.rename(columns={'iBAQ_dstrAdj':'ibaq_norm'}, inplace=True)
+            exp.df.rename(columns={'iBAQ_dstrAdj_raw':'iBAQ_dstrAdj'}, inplace=True)
+
+
     if normalize is not None:
         for exp in [exp1, exp2]:
             if normalize.strip() == 'mean':
                 exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.mean()
             elif normalize.strip() == 'median':
                 exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.median()
-            exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_raw'}, copy=True)
-            exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, copy=True)
-            
+            exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_raw'}, inplace=True)
+            exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, inplace=True)
+
     funcat_cols = ['GeneCapacity', 'GeneSymbol', 'GeneDescription', 'FunCats', 'GeneID']
     funcat1 = exp1.df[funcat_cols]
     funcat2 = exp2.df[funcat_cols]
@@ -432,12 +437,12 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
     joinexp = E2G()
     for attr in [key for key in joinexp.__dict__.keys() if
                  not key.startswith('_')]:
-        
+
         value = str(exp1.__getattribute__(attr)) + \
                  ' vs ' + \
                  str(exp2.__getattribute__(attr))
         joinexp.__setattr__(attr, value)
-        
+
     nofuncats = [col for col in exp1.df.columns if col not in funcat_cols]
     joinexp._df = exp1.df[nofuncats].join(exp2.df[nofuncats],
                                           lsuffix = '_x', rsuffix='_y',

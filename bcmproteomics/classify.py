@@ -192,7 +192,8 @@ def plot_confusion_matrix(cm, labels, title='Confusion matrix', cmap=plt.cm.Blue
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     print(labels)
     plt.title(title)
-    plt.colorbar()
+    cbar = plt.colorbar()
+    cbar.solids.set_edgecolor("face")  # alternatively use rasterized=True somewhere
     tick_marks = np.arange(len(labels))
     plt.xticks(tick_marks, labels, rotation=45)
     plt.yticks(tick_marks, labels)
