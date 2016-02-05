@@ -169,17 +169,28 @@ class E2G:
         df['GeneID'] = df.index  # put index in its own column as well for easy access    
         return df
 
-    def strict(self, df=None):
-        """Returns a strict selection of gene products from the dataframe"""
+    def strict(self, df=None, set1=False):
+        """Returns a strict selection of gene products from the dataframe
+        Attributes
+        ----------
+        df : desired dataframe to be filtered (optional, default is E2G.df)
 
-        if self._joined:
-            return df[((df['IDSet_x'] < 3) & (df['IDGroup_x'] <= 3) |
-                      (df['IDSet_y'] < 3) & (df['IDGroup_y'] <= 3))]
-                       
+        set1 : filter even more stringently with only IDSet 1 (optional, default False)
+        """
+
         if df is None:
             df = self.df
-            
-        return df[(df['IDSet'] < 3) &
+        if not set1:
+            cutoff = 3
+        elif set1:
+            cutoff = 2
+
+        if self._joined:
+            return df[((df['IDSet_x'] < cutoff) & (df['IDGroup_x'] <= 3) |
+                      (df['IDSet_y'] < cutoff) & (df['IDGroup_y'] <= 3))]
+
+
+        return df[(df['IDSet'] < cutoff) &
                   (df['IDGroup'] <= 3)]
 
     @property
