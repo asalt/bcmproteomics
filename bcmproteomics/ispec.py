@@ -437,6 +437,8 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
                 exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.mean()
             elif normalize.strip() == 'median':
                 exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.median()
+            elif normalize.strip() == 'sum':
+                exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.sum()
             exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_raw'}, inplace=True)
             exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, inplace=True)
 
