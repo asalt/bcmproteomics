@@ -81,6 +81,9 @@ class E2G:
     def df(self):
         """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
         return self._df
+    @property
+    def _database(self):
+        return params.get('database')
 
     def get_exprun(self, recno=None, runno=1, searchno=1):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
@@ -96,19 +99,21 @@ class E2G:
         if isinstance(conn, str):
             return # failed to make connection, user is informed in filedb_connect()
 
-        sql = ("SELECT {} from iSPEC_BCM.iSPEC_exp2gene where "
-               "e2g_EXPRecNo={} "
-               "AND e2g_EXPRunNo={} "
-               "AND e2g_EXPSearchNo={}").format(', '.join(e2gcolumns),
-                                                recno,
-                                                runno,
-                                                searchno)
+        sql = ("SELECT {e2gcols} from {database}.iSPEC_exp2gene where "
+               "e2g_EXPRecNo={recno} "
+               "AND e2g_EXPRunNo={runno} "
+               "AND e2g_EXPSearchNo={searchno}").format(e2gcols=', '.join(e2gcolumns),
+                                                recno=recno,
+                                                runno=runno,
+                                                searchno=searchno,
+                                                database=self._database)
 
         self._df = self._construct_df(sql, conn)
         sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
                            "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
                            "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
-                           "from iSPEC_BCM.iSPEC_Experiments where exp_EXPRecNo={}").format(recno)
+                           "from {database}.iSPEC_Experiments where exp_EXPRecNo={recno}").format(database=self._database,
+                                                                                                recno=recno)
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
         self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
         self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
@@ -127,8 +132,8 @@ class E2G:
 
         if self.extract_no:
             sql_extractdata = ("SELECT ext_Fractions, ext_Protocol FROM "
-                               "iSPEC_BCM.iSPEC_Extracts "
-                               "WHERE ext_ExtRecNo={}").format(self.extract_no)
+                               "{database}.iSPEC_Extracts "
+                               "WHERE ext_ExtRecNo={extract_no}").format(database=self._database, extract_no=self.extract_no)
             extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
             self.extract_fractions = ''.join(extract_info.get('ext_Fractions', ''))
             self.extract_protocol = ''.join(extract_info.get('ext_Protocol', '')).replace('\r', ', ')
