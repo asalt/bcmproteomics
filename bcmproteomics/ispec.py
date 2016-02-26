@@ -85,6 +85,13 @@ class E2G:
     def _database(self):
         return params.get('database')
 
+    def reload(self):
+        """Reload the dataset"""
+        if self._joined:
+            raise NotImplementedError('Cannot reload data for a joined experiment.')
+        self.get_exprun(self.recno, self.runno, self.searchno)
+    
+
     def get_exprun(self, recno=None, runno=1, searchno=1):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
         """
@@ -113,7 +120,7 @@ class E2G:
                            "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
                            "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
                            "from {database}.iSPEC_Experiments where exp_EXPRecNo={recno}").format(database=self._database,
-                                                                                                recno=recno)
+                                                                                                  recno=recno)
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
         self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
         self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
@@ -291,7 +298,7 @@ def _getlogin():
     servers = {'bcmproteomics': '10.16.2.74',
                'jun lab': '10.13.14.171',
                }
-    databases = {'10.16.2.74': ['iSPEC_BCM', 'iSPEC_BCM_psms'],
+    databases = {'10.16.2.74': ['iSPEC_BCM', 'iSPEC_BCM_psms', 'iSPEC_BCM_IDG'],
                  '10.13.14.171': ['iSPEC'],
                  }
     if params.get('user') is None:
@@ -318,7 +325,8 @@ def _getlogin():
             print('iSPEC database is not set, the options are:')
             print(*[database for database in databases[server_url]], sep='\t')
             db = input('Select an iSPEC database: ').strip()
-            params['database'] = databases.get(db, 'iSPEC_BCM')
+            params['database'] = db
+            #databases.get(db, 'iSPEC_BCM')
 
     return params
 
