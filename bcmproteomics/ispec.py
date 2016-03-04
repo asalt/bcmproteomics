@@ -66,7 +66,7 @@ class E2G:
         self.exptype = ''
         self.genotype = ''
         self.added_by = ''
-        self.identifier = ''
+        self.identifiers = ''
         if recno is not None:
             self.get_exprun(recno, runno, searchno) # self._df gets set through here
         else:
@@ -134,7 +134,7 @@ class E2G:
         self.digest_enzyme = ''.join(item for item in info.get('exp_Digest_Enzyme', '') if item)
         #print( ''.join(int(item) for item in info.get('exp_Extract_No', 0) if str(item).isdigit()))
         self.extract_no = ''.join(str(item) for item in info.get('exp_Extract_No', 0) if item)
-        self.identifier = ''.join(item for item in info.get('exp_IDENTIFIER', '') if item)
+        self.identifiers = ''.join(item for item in info.get('exp_IDENTIFIER', '') if item).splitlines()
         self.recno = recno
         self.runno = runno
         self.searchno = searchno
