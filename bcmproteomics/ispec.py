@@ -421,6 +421,19 @@ def get_geneids(taxonid):
     genes = [int(g) for gid in gids for g in gid]
     return genes
 
+def _ratio_normalize(joindf, normalize):
+    
+    ratio = normalize.split('.')
+    if len(ratio) == 2:
+        subselection = ratio[1]
+    else:
+        subselection = ''
+        
+    median_ratio = (joindf[joindf.FunCats.str.contains(subselection)]['iBAQ_dstrAdj_y']/joindf[joindf.FunCats.str.contains(subselection)]['iBAQ_dstrAdj_x']).median()
+    joindf['iBAQ_dstrAdj_x'] = joindf['iBAQ_dstrAdj_x']/median_ratio
+    joindf['iBAQ_dstrAdj_y'] = joindf['iBAQ_dstrAdj_y']/median_ratio
+    return joindf
+
 def join_exps(exp1, exp2, normalize=None, seed=None):
     """Nice outer join two experiments based on their geneids. Useful for comparing between experiments.
     Keeps gene information as well.
@@ -446,7 +459,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
             exp.df.rename(columns={'iBAQ_dstrAdj_raw':'iBAQ_dstrAdj'}, inplace=True)
 
 
-    if normalize is not None:
+    if normalize is not None and 'ratio' not in normalize:
         for exp in [exp1, exp2]:
             if normalize.strip() == 'mean':
                 exp.df['ibaq_norm'] = exp.df.iBAQ_dstrAdj/exp.df.iBAQ_dstrAdj.mean()
@@ -470,7 +483,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
                  ' vs ' + \
                  str(exp2.__getattribute__(attr))
         joinexp.__setattr__(attr, value)
-
+    #Perform the join
     nofuncats = [col for col in exp1.df.columns if col not in funcat_cols]
     joinexp._df = exp1.df[nofuncats].join(exp2.df[nofuncats],
                                           lsuffix = '_x', rsuffix='_y',
@@ -480,6 +493,8 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
                              for x in joinexp.df.index] # for convienence
     joinexp._joined = True
     joinexp.ibaq_normalize = normalize
+    if normalize and 'ratio' in normalize:
+        joinexp._df = _ratio_normalize(joinexp.df, normalize)
     try:
         score_experiments(joinexp, seed=seed)
     except Exception as e:
