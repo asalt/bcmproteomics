@@ -1,17 +1,23 @@
 import os
+import re
 from setuptools import setup, find_packages
+
+_version_re = re.compile(r'__version__\s+=\s+(.*)') # from Armin Ronacher
+
+with open('bcmproteomics/__init__.py', 'r') as f:
+    version = _version_re.search(f.read()).group(1)
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(
-    name = 'bcmproteomics',
-    version = '0.0.3',
-    author = 'Alex Saltzman',
-    author_email = 'saltzman@bcm.edu',
-    description = 'A library for conveniently grabbing data from BCM_Proteomics iSPEC',
-    license = 'MIT',
-    url = 'https://github.com/asalt/bcmproteomics',
+    name='bcmproteomics',
+    version=version,
+    author='Alex Saltzman',
+    author_email='saltzman@bcm.edu',
+    description='A library for conveniently grabbing data from BCM_Proteomics iSPEC',
+    license='MIT',
+    url='https://github.com/asalt/bcmproteomics',
     long_description = read('README.md'),
     packages=find_packages(),
     install_requires=['pyodbc'],
@@ -27,5 +33,3 @@ setup(
         'bcmproteomics': ['training_data/*.txt'],
     },
 )
-
-
