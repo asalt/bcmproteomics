@@ -91,7 +91,7 @@ class E2G:
         if self._joined:
             raise NotImplementedError('Cannot reload data for a joined experiment.')
         self.get_exprun(self.recno, self.runno, self.searchno)
-    
+
 
     def get_exprun(self, recno=None, runno=1, searchno=1):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
@@ -154,7 +154,7 @@ class E2G:
         """Construct a pandas dataframe from data in the iSPEC.
         """
         df = pd.read_sql(sql, conn, index_col='e2g_GeneID')
-        df.rename(columns={k: k.split('e2g_')[1] for k in 
+        df.rename(columns={k: k.split('e2g_')[1] for k in
                [e2gcol for e2gcol in df.columns if e2gcol.startswith('e2g_')]},
              inplace=True)
         df.rename(columns={'n_iBAQ_dstrAdj': 'iBAQ_dstrAdj',},
@@ -180,7 +180,7 @@ class E2G:
             #df = pd.merge(df, genedf, on='GeneID')
             df = df.join(genedf)
             df['FunCats'].fillna('', inplace=True)
-        df['GeneID'] = df.index  # put index in its own column as well for easy access    
+        df['GeneID'] = df.index  # put index in its own column as well for easy access
         return df
 
     def strict(self, df=None, set1=False):
@@ -216,7 +216,7 @@ class E2G:
     def tfs(self):
         """Return gene products annotated as a DBTF"""
         return self.df[self.df['FunCats'].str.contains('DBTF')]
-                       
+
     @property
     def kinases(self):
         """Return gene products annotated as a kinase"""
@@ -247,7 +247,7 @@ class E2G:
                                 )
         print('\nSummary for record {}, run {}.\n'.format(self.recno, self.runno, ))
 
-        if self._joined:    
+        if self._joined:
             dfU, dfS, dfD = self.USD_selector()
             print('Total gene products found : '
                   '{} same, {} up, {} down'.format(len(dfS), len(dfU), len(dfD)))
@@ -340,7 +340,7 @@ def filedb_connect():
     If the password has not been established yet, user will be prompted.
     Password is only stored in memory for the duration of the python session.
     """
-    
+
     params = _getlogin()
 
     driver    = 'DRIVER={FileMaker ODBC};'
@@ -370,13 +370,13 @@ def filedb_connect():
     return conn
 
 def get_funcats(geneidlist):
-    """Takes a list of gene ids and returns the funcats table from iSPEC in the form of a 
+    """Takes a list of gene ids and returns the funcats table from iSPEC in the form of a
     pandas DataFrame.
 
     The index of the dataframe is the geneids (as the pandas default type of float64.
     For convienence, the geneids are also found within their own column as an object type.
 
-    The funcats column of the DataFrame has had each null value filled with an empty string, 
+    The funcats column of the DataFrame has had each null value filled with an empty string,
     which allows for easy string searching with pandas.
     """
     if not isinstance(geneidlist, list) or len(geneidlist) == 0:
@@ -391,7 +391,7 @@ def get_funcats(geneidlist):
                "gene_FunCats " \
                "from iSPEC_BCM.iSPEC_Genes "\
                "where gene_GeneID in ({})".format(', '.join([str(x) for x in geneidlist]))
-                                                             
+
 
     genedf = pd.read_sql(genesql, conn, index_col='gene_GeneID')  # all headers start with gene_
     generename = {c: c.split('gene_')[1] for c in genedf.columns}
@@ -424,7 +424,7 @@ def get_geneids(taxonid):
 def join_exps(exp1, exp2, normalize=None, seed=None):
     """Nice outer join two experiments based on their geneids. Useful for comparing between experiments.
     Keeps gene information as well.
-    
+
     Parameters
     ----------
     exp1, exp2 : non jonied E2G objects

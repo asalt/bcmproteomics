@@ -185,10 +185,10 @@ def classifier_training(merge_cats=True, subsample=True, seed=None):
 
 def plot_confusion_matrix(cm, labels, title='Confusion matrix', cmap=plt.cm.Blues, savefig=False, figname=None,
                           **kwargs):
-    """ Takes in your n by n dimensional confusion matrix, the appropriate labels, 
+    """ Takes in your n by n dimensional confusion matrix, the appropriate labels,
     and optional title and color map.
     Default uses matplotlib imported as plt"""
-    
+
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     print(labels)
     plt.title(title)
@@ -254,7 +254,7 @@ def _feature_importance(forest, features=None, plot=False, savefig=False, fignam
         ax.yaxis.set_ticks_position('none')
         ax.yaxis.labelpad = 20
         ax.tick_params(axis='y', pad=15)  # so not too close to spine
-        
+
         for spine in ['top', 'right',]:
             ax.spines[spine].set_visible(False)
         if savefig:

@@ -25,7 +25,7 @@ def _gid_rank_info(geneid, d, n=1):
     return np.mean(values), count_tot, exp_desc, usd_prob, exp_print
 
 def _gene_summary(df, d, exp_counter=1):
-    """Returns average rank, ratio of count/total, description, 
+    """Returns average rank, ratio of count/total, description,
     usd probability, and experiment print
     """
     df['avg_rank'], df['count/total'], df['desc'], df['usd_prob'], df['exp_print']= \
@@ -41,7 +41,7 @@ def _taxon_normalizer(df, ratio):
     global hu_genes, mou_genes
     area = 'iBAQ_dstrAdj'
     #ratio = tnormalize[df['_e2g_EXPRecNo'].values[0]]
-    
+
     if df['GeneID'] in hu_genes:
         tid = 9606
     elif df['GeneID'] in mou_genes:
@@ -70,7 +70,7 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
         ctrl = exps[0]
         treat = exps[1]
         print('Processing {} vs {}'.format(ctrl, treat))
- 
+
         if tnormalize:
             for exp in [ctrl, treat]:
                 exp_ratio = tnormalize[exp.recno]
@@ -83,10 +83,10 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
                                    normalize=ibaqnorm, seed=seed)  # automatically does the machine learning
         if 'USD' not in exp_join.df.columns:
             continue
-        
-        df_U = exp_join.df[exp_join.df.USD=='U'].sort_values(by=['dlog_diBAQ','dPSMs'],ascending=[False, 
+
+        df_U = exp_join.df[exp_join.df.USD=='U'].sort_values(by=['dlog_diBAQ','dPSMs'],ascending=[False,
                                                             False]).reset_index(drop=True)
-        df_D = exp_join.df[exp_join.df.USD=='D'].sort_values(by=['dlog_diBAQ','dPSMs'],ascending=[True, 
+        df_D = exp_join.df[exp_join.df.USD=='D'].sort_values(by=['dlog_diBAQ','dPSMs'],ascending=[True,
                                                             True]).reset_index(drop=True)
         df_U['ranks'] = df_U.index+1
         df_D['ranks'] = df_D.index+1
