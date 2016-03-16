@@ -34,7 +34,7 @@ class Experiment:
         self.added_by = ''
         self.identifiers = ''
         if recno is not None:
-            self.get_exprun(recno, runno, searchno) # self._df gets set through here
+            self.get_metadata(recno, runno, searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
@@ -94,8 +94,8 @@ class Experiment:
         self.recno = recno
         self.runno = runno
         self.searchno = searchno
-        if extract_no:
-            extract_fractions, extract_protocol = get_extract_data(extract_no)
+        if self.extract_no:
+            extract_fractions, extract_protocol = self.get_extract_data(self.extract_no)
             self.extract_fractions = extract_fractions
             self.extract_protocol = extract_protocol
         return self
@@ -153,7 +153,7 @@ class E2G(Experiment):
         """Different metadata as well as data"""
         super().__init__(recno=recno, runno=runno, searchno=searchno)
         if recno is not None:
-            self.get_data(recno, runno, searchno) # self._df gets set through here
+            self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
@@ -174,7 +174,7 @@ class E2G(Experiment):
         self.get_exprun(self.recno, self.runno, self.searchno)
 
 
-    def get_data(self, recno=None, runno=1, searchno=1):
+    def get_exprun(self, recno=None, runno=1, searchno=1):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
         """
         conn = filedb_connect()
