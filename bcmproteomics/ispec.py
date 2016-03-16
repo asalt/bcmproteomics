@@ -17,8 +17,102 @@ url  = None
 database = None
 params = {'user': user, 'pw': pw, 'url': url, 'database': database}
 
+class Experiment:
+    """Base object for inheritance for other objects.
+    Grabs metadata"""
 
-class E2G:
+    def __init__(self, recno=None, runno=None, searchno=None):
+        """Different metadata as well as data"""
+        self.recno = recno
+        self.runno = runno
+        self.searchno = searchno
+        #self.techrepno =
+        self.sample = ''
+        self.treatment = ''
+        self.exptype = ''
+        self.genotype = ''
+        self.added_by = ''
+        self.identifiers = ''
+        if recno is not None:
+            self.get_exprun(recno, runno, searchno) # self._df gets set through here
+        else:
+            self._df = pd.DataFrame() # else set as empty dataframe
+        self._joined = False
+        self.ibaq_normalize = None
+
+    def __repr__(self):
+        """Returns record and run number"""
+        return 'Record number {}, run number {}'.format(self.recno, self.runno)
+
+    @property
+    def df(self):
+        """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
+        return self._df
+    @property
+    def _database(self):
+        return params.get('database')
+
+    def reload(self):
+        """Reload the dataset"""
+        if self._joined:
+            raise NotImplementedError('Cannot reload data for a joined experiment.')
+        self.get_exprun(self.recno, self.runno, self.searchno)
+
+    def get_ex():
+        pass
+
+    def get_metadata(self, recno, runno, searchno):
+        if not recno:
+            raise ValueError('recno must be specified')
+        if runno is None:
+            runno = 1  # make sure default runno is 1
+        if searchno is None:
+            searchno = 1
+
+        conn = filedb_connect()
+        if isinstance(conn, str):
+            return # failed to make connection, user is informed in filedb_connect()
+
+        sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
+                           "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
+                           "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
+                           "from {database}.iSPEC_Experiments where exp_EXPRecNo={recno}").format(database=self._database,
+                                                                                                  recno=recno)
+        info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
+        self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
+        self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
+        self.exptype = ''.join(item for item in info.get('exp_EXPClass', '') if item)
+        self.description = [item for items in info.get('exp_Exp_Description', '')
+                            for item in (items.splitlines() if items else '')]
+        self.genotype = ''.join(item for item in info.get('exp_Extract_Genotype', '') if item)
+        self.added_by = ''.join(item for item in info.get('exp_AddedBy', '') if item)
+        self.digest_type = ''.join(item for item in info.get('exp_Digest_Type', '') if item)
+        self.digest_enzyme = ''.join(item for item in info.get('exp_Digest_Enzyme', '') if item)
+        #print( ''.join(int(item) for item in info.get('exp_Extract_No', 0) if str(item).isdigit()))
+        self.extract_no = ''.join(str(item) for item in info.get('exp_Extract_No', 0) if item)
+        self.identifiers = ''.join(item for item in info.get('exp_IDENTIFIER', '') if item).splitlines()
+        self.recno = recno
+        self.runno = runno
+        self.searchno = searchno
+        if extract_no:
+            extract_fractions, extract_protocol = get_extract_data(extract_no)
+            self.extract_fractions = extract_fractions
+            self.extract_protocol = extract_protocol
+        return self
+
+    def get_extract_data(self, extractno):
+        """Extract """
+        conn = filedb_connect()
+        sql_extractdata = ("SELECT ext_Fractions, ext_Protocol FROM "
+                           "{database}.iSPEC_Extracts "
+                           "WHERE ext_ExtRecNo={extract_no}").format(database=self._database, extract_no=self.extract_no)
+        extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
+        extract_fractions = ''.join(extract_info.get('ext_Fractions', ''))
+        extract_protocol = ''.join(extract_info.get('ext_Protocol', '')).replace('\r', ', ')
+        conn.close()
+        return (extract_fractions, extract_protocol)
+
+class E2G(Experiment):
     """ An object for working with iSPEC Proteomics data at BCM
 
     Attributes
@@ -57,26 +151,13 @@ class E2G:
     """
     def __init__(self, recno=None, runno=None, searchno=None):
         """Different metadata as well as data"""
-        self.recno = recno
-        self.runno = runno
-        self.searchno = searchno
-        #self.techrepno =
-        self.sample = ''
-        self.treatment = ''
-        self.exptype = ''
-        self.genotype = ''
-        self.added_by = ''
-        self.identifiers = ''
+        super().__init__(recno=recno, runno=runno, searchno=searchno)
         if recno is not None:
-            self.get_exprun(recno, runno, searchno) # self._df gets set through here
+            self.get_data(recno, runno, searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
         self.ibaq_normalize = None
-
-    def __repr__(self):
-        """Returns record and run number"""
-        return 'Record number {}, run number {}'.format(self.recno, self.runno)
 
     @property
     def df(self):
@@ -93,16 +174,9 @@ class E2G:
         self.get_exprun(self.recno, self.runno, self.searchno)
 
 
-    def get_exprun(self, recno=None, runno=1, searchno=1):
+    def get_data(self, recno=None, runno=1, searchno=1):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
         """
-        if not recno:
-            raise ValueError('recno must be specified')
-        if runno is None:
-            runno = 1  # make sure default runno is 1
-        if searchno is None:
-            searchno = 1
-
         conn = filedb_connect()
         if isinstance(conn, str):
             return # failed to make connection, user is informed in filedb_connect()
@@ -117,35 +191,6 @@ class E2G:
                                                 database=self._database)
 
         self._df = self._construct_df(sql, conn)
-        sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
-                           "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
-                           "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
-                           "from {database}.iSPEC_Experiments where exp_EXPRecNo={recno}").format(database=self._database,
-                                                                                                  recno=recno)
-        info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
-        self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
-        self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
-        self.exptype = ''.join(item for item in info.get('exp_EXPClass', '') if item)
-        self.description = [item for items in info.get('exp_Exp_Description', '')
-                            for item in (items.splitlines() if items else '')]
-        self.genotype = ''.join(item for item in info.get('exp_Extract_Genotype', '') if item)
-        self.added_by = ''.join(item for item in info.get('exp_AddedBy', '') if item)
-        self.digest_type = ''.join(item for item in info.get('exp_Digest_Type', '') if item)
-        self.digest_enzyme = ''.join(item for item in info.get('exp_Digest_Enzyme', '') if item)
-        #print( ''.join(int(item) for item in info.get('exp_Extract_No', 0) if str(item).isdigit()))
-        self.extract_no = ''.join(str(item) for item in info.get('exp_Extract_No', 0) if item)
-        self.identifiers = ''.join(item for item in info.get('exp_IDENTIFIER', '') if item).splitlines()
-        self.recno = recno
-        self.runno = runno
-        self.searchno = searchno
-
-        if self.extract_no:
-            sql_extractdata = ("SELECT ext_Fractions, ext_Protocol FROM "
-                               "{database}.iSPEC_Extracts "
-                               "WHERE ext_ExtRecNo={extract_no}").format(database=self._database, extract_no=self.extract_no)
-            extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
-            self.extract_fractions = ''.join(extract_info.get('ext_Fractions', ''))
-            self.extract_protocol = ''.join(extract_info.get('ext_Protocol', '')).replace('\r', ', ')
         conn.close()
         return self
 
