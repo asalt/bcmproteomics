@@ -112,6 +112,57 @@ class Experiment:
         conn.close()
         return (extract_fractions, extract_protocol)
 
+    @property
+    def _database(self):
+        return params.get('database')
+
+class PSMs(Experiment):
+    """An object for working with iSPEC PSMs data at BCM"""
+    def __init__(self, recno=None, runno=None, searchno=None):
+        super().__init__(recno=recno, runno=runno, searchno=searchno)
+        if recno is not None:
+            self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
+        else:
+            self._df = pd.DataFrame() # else set as empty dataframe
+        self._joined = False
+
+    def get_exprun(self, recno, runno, searchno):
+        """queries iSPEC database and grabs the gene product table which is stored in self.df
+        """
+        conn = filedb_connect()
+        if isinstance(conn, str):
+            return # failed to make connection, user is informed in filedb_connect()
+
+        sql = ("SELECT * from {database}.iSPEC_data where "
+               "psm_EXPRecNo={recno} "
+               "AND psm_EXPRunNo={runno} "
+               "AND psm_EXPSearchNo={searchno}").format(recno=recno,
+                                                        runno=runno,
+                                                        searchno=searchno,
+                                                        database=self._database
+               )
+
+        self._df = self._construct_df(sql, conn)
+        conn.close()
+        return self
+
+    @staticmethod
+    def _construct_df(sql, conn):
+        """Construct a pandas dataframe from data in the iSPEC.
+        """
+        df = pd.read_sql(sql, conn,)
+        df.rename(columns={k: k.split('psm_')[1] for k in
+               [col for col in df.columns if col.startswith('psm_')]},
+             inplace=True)
+        return df
+
+    def reload(self):
+        """Reload the dataset"""
+        if self._joined:
+            raise NotImplementedError('Cannot reload data for a joined experiment.')
+        self.get_exprun(self.recno, self.runno, self.searchno)
+
+
 class E2G(Experiment):
     """ An object for working with iSPEC Proteomics data at BCM
 
@@ -144,7 +195,7 @@ class E2G(Experiment):
     >>> from bcmproteomcs import ispec
     >>> exp1 = ispec.E2G(12345,1)
     >>> exp2 = ispec.E2G(12345,2)
-    >>> exp1_2 = ispec.join_exps(exp1, exp2)
+    >>> exp1_2 = ispec.join_exps(exp1, exp2) (or exp1_2 = exp1 + exp2)
 
     note that many methods on E2G are (currently) unavailable with a joined E2G instance
     ----------
@@ -159,13 +210,13 @@ class E2G(Experiment):
         self._joined = False
         self.ibaq_normalize = None
 
+    def __add__(self, other):
+        return join_exps(self, other)
+
     @property
     def df(self):
         """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
         return self._df
-    @property
-    def _database(self):
-        return params.get('database')
 
     def reload(self):
         """Reload the dataset"""
