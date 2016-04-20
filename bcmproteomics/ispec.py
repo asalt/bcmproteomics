@@ -42,7 +42,8 @@ class Experiment:
 
     def __repr__(self):
         """Returns record and run number"""
-        return 'Record number {}, run number {}'.format(self.recno, self.runno)
+        return '{}_{}_{}'.format(self.recno, self.runno, self.searchno)
+        # return 'Record number {}, run number {}'.format(self.recno, self.runno)
 
     @property
     def df(self):

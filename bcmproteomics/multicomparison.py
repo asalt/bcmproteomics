@@ -140,7 +140,7 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
     #up_df.to_csv(outpath+u_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
     #down_df.to_csv(outpath+d_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
 
-def _expconstructor(ctrls=None, samples=None):
+def _expconstructor(ctrls=None, samples=None, by_pairs=False):
     """ Magically makes all the data numbers you wish to find
     """
     ctrls = [(x,1,1) for x in ctrls if not isinstance(x,tuple)]
@@ -165,12 +165,14 @@ def _expconstructor(ctrls=None, samples=None):
             sample_e2gs.append(exp)
         elif len(exp.df) == 0:
             print('No data for ', exp, '\nSkipping')
+    if by_pairs:
+        return [(ctrl, sample) for ctrl, sample in zip(ctrl_e2gs, sample_e2gs)]
 
     pairs = [(ctrl, sample) for ctrl, sample in itertools.product(ctrl_e2gs, sample_e2gs)]
     return pairs
 
 def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=None,
-                    taxon_normalize=None, seed=None):
+                    taxon_normalize=None, seed=None, by_pairs=False):
     """Function to run combinations of pairwise comparisons of experimental results located
     in an iSPEC database. Returns two pandas dataframes, the first containing all gene products
     found be considered up in the second group at least once and the second containing all
@@ -204,6 +206,11 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
         Note that if taxon_normalize is used, an entry for each
         experiment record must be included.
 
+    by_pairs : (optional) only do comparisons by pairs based on the ordering of the experiments.
+               ctrls = [12345, 12346] and treatments = [12347, 12348] will only do:
+                     12345 vs 12347, and 12346 and 12348. Order matters
+               Default False
+
     seed : (optional) sets seed for random forest classifier.
 
     ----------
@@ -219,7 +226,7 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
         return
 
 
-    pairs = _expconstructor(ctrls, samples)
+    pairs = _expconstructor(ctrls, samples, by_pairs=by_pairs)
     if not pairs:
         print('No pairs of experiments to compare!')
         return
