@@ -534,7 +534,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
 
     Optional seed argument sets seed for random forest classifier.
     """
-    if any(type(exp) is not E2G for exp in [exp1, exp2]):
+    if not any(isinstance(exp, E2G) for exp in [exp1, exp2]):
         raise  TypeError('Incorrect input type')
 
     for exp in [exp1, exp2]:
