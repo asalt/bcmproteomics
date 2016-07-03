@@ -25,13 +25,36 @@ def aggregate_all_data(exps, cols=None):
     funcats = ispec.get_funcats( df.index.tolist())
     return pivot_df.join(funcats)
 
+def log_normalize(df, cols=None, how='log2', rename=False):
+    """log normalize columns in a DataFrame, replacing -inf with 0 and shifting everything up by the min value
+    how: how to normalize - log2, log10, or log1p
+    cols is a list of columns to normalize. If left as None will go across all values
+    rename : if True, add a prefix to each column with the transformation
+    """
+    if cols is None:
+        cols = df.columns
+    if how == 'log2':
+        out = df[cols].fillna(0).apply(np.log2)
+    elif how == 'log10':
+        out = df[cols].fillna(0).apply(np.log10)
+    elif how == 'log1p':
+        out = df[cols].fillna(0).apply(np.log1p)
+    minvalue = min([x for y in out.values
+                    for x in y
+                    if x != -np.inf])
+    out = out + abs(minvalue)
+    out.replace(-np.inf, 0, inplace=True)
+    if rename:
+        out.rename( columns={ x : '{}_{}'.format(how, x) for x in cols}, inplace=True)
+    return out
+
 def aggregate_data(exps, area_col='iBAQ_dstrAdj', normalize=None, tofilter=None,
                    label_by=None, funcats=False):
     """
     Aggregate data based on 1 column (default iBAQ_dstrAdj)
     Input is a list of E2G experiments.
 
-    normalize : How to normalize the data. Acceptable values are None, 'log2', 'log10', and 'row'.
+    normalize : How to normalize the data. Acceptable values are None, 'log2', 'log10', log1p, and 'row'.
     to_filter : How to filter the data for each experiment. Acceptable values are
         None, 'strict', 'set1' ('set1' is strict and set1 only)
     label_by  : if set to a string that is an attribute, will rename each column appropriately
@@ -55,17 +78,13 @@ def aggregate_data(exps, area_col='iBAQ_dstrAdj', normalize=None, tofilter=None,
         norm_df = pivot_df
     elif normalize == 'row':
         norm_df =  pivot_df.div(data.sum(axis=1), axis=0).dropna(axis=0, how='all')
-    elif normalize == 'log2' or normalize == 'log10':
+    elif any(normalize == x for x in ('log2', 'log10', 'log1p')):
         if normalize == 'log2':
-            norm_df = pivot_df.fillna(0).apply(np.log2)
+            norm_df = log_normalize(pivot_df)
         elif normalize == 'log10':
-            norm_df = pivot_df.fillna(0).apply(np.log2)
-
-        minvalue = min([x for y in norm_df.values
-                        for x in y
-                        if x != -np.inf])
-        norm_df = norm_df + abs(minvalue)
-        norm_df.replace(-np.inf, 0, inplace=True)
+            norm_df = log_normalize(pivot_df, how='log10')
+        elif normalize == 'log1p':
+            norm_df = log_normalize(pivot_df, how='log1p')
 
     if label_by is not None:
         if not all([label_by in exp.__dict__ for exp in exps]) == True:
