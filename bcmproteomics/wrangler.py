@@ -25,26 +25,40 @@ def aggregate_all_data(exps, cols=None):
     funcats = ispec.get_funcats( df.index.tolist())
     return pivot_df.join(funcats)
 
-def log_normalize(df, cols=None, how='log2', rename=False):
-    """log normalize columns in a DataFrame, replacing -inf with 0 and shifting everything up by the min value
+def log_normalize(data, cols=None, how='log2', rename=False):
+    """log normalize columns in a DataFrame or array, replacing -inf with 0 and shifting everything up by the min value
     how: how to normalize - log2, log10, or log1p
     cols is a list of columns to normalize. If left as None will go across all values
     rename : if True, add a prefix to each column with the transformation
     """
-    if cols is None:
-        cols = df.columns
+    if cols is None and isinstance(data, pd.DataFrame):
+        cols = data.columns
     if how == 'log2':
-        out = df[cols].fillna(0).apply(np.log2)
+        func = np.log2
     elif how == 'log10':
-        out = df[cols].fillna(0).apply(np.log10)
+        func = np.log10
     elif how == 'log1p':
-        out = df[cols].fillna(0).apply(np.log1p)
-    minvalue = min([x for y in out.values
-                    for x in y
-                    if x != -np.inf])
-    out = out + abs(minvalue)
-    out.replace(-np.inf, 0, inplace=True)
-    if rename:
+        func = np.log1p
+    if isinstance(data, pd.DataFrame):
+        out = data[cols].fillna(0).apply(func)
+    else:
+        out = func(data)
+    minvalue = np.min(np.where(np.array(out) != -np.inf))
+    maxvalue = np.max(np.where(np.array(out) != np.inf))
+    min_scale = 1.1 if minvalue < 0 else 0.9
+    max_scale = 1.1 if minvalue > 0 else 0.9
+    if minvalue == 0:
+        minvalue = func(10**-3)
+    if maxvalue == 0:
+        maxvalue = func(10**3)
+    # out = out + abs(minvalue)
+    if isinstance(data, pd.DataFrame):
+        out.replace(-np.inf, minvalue*min_scale, inplace=True)
+        out.replace(np.inf, maxvalue*max_scale, inplace=True)
+    else:
+        np.maximum(out, minvalue * min_scale, out)
+        np.minimum(out, maxvalue * max_scale, out)
+    if rename and isinstance(data, pd.DataFrame):
         out.rename( columns={ x : '{}_{}'.format(how, x) for x in cols}, inplace=True)
     return out
 
