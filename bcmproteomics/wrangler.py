@@ -43,8 +43,8 @@ def log_normalize(data, cols=None, how='log2', rename=False):
         out = data[cols].fillna(0).apply(func)
     else:
         out = func(data)
-    minvalue = np.min(np.where(np.array(out) != -np.inf))
-    maxvalue = np.max(np.where(np.array(out) != np.inf))
+    minvalue = np.min(np.array(out)[np.array(out) != -np.inf])
+    maxvalue = np.max(np.array(out)[np.array(out) != -np.inf])
     min_scale = 1.1 if minvalue < 0 else 0.9
     max_scale = 1.1 if minvalue > 0 else 0.9
     if minvalue == 0:
