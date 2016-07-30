@@ -21,7 +21,7 @@ class Experiment:
     """Base object for inheritance for other objects.
     Grabs metadata"""
 
-    def __init__(self, recno=None, runno=None, searchno=None):
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
         """Different metadata as well as data"""
         self.recno = recno
         self.runno = runno
@@ -33,7 +33,7 @@ class Experiment:
         self.genotype = ''
         self.added_by = ''
         self.identifiers = ''
-        if recno is not None:
+        if recno is not None and auto_populate:
             self.get_metadata(recno, runno, searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
@@ -116,6 +116,9 @@ class Experiment:
     @property
     def _database(self):
         return params.get('database')
+
+    def to_json(self):
+        json_data = json.dumps(self.__dict__)
 
 class PSMs(Experiment):
     """An object for working with iSPEC PSMs data at BCM"""
@@ -201,10 +204,10 @@ class E2G(Experiment):
     note that many methods on E2G are (currently) unavailable with a joined E2G instance
     ----------
     """
-    def __init__(self, recno=None, runno=None, searchno=None):
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
         """Different metadata as well as data"""
-        super().__init__(recno=recno, runno=runno, searchno=searchno)
-        if recno is not None:
+        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+        if recno is not None and auto_populate:
             self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
@@ -213,6 +216,9 @@ class E2G(Experiment):
 
     def __add__(self, other):
         return join_exps(self, other)
+
+    def __len__(self):
+        return len(self.df)
 
     @property
     def df(self):
