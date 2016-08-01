@@ -112,8 +112,10 @@ class Experiment:
                 database=self._database)
         cursor = conn.cursor()
         cursor.execute(taxa_info)
-        hu, mou, gg = cursor.fetchone()
-        self._add_taxon_ratios(hu, mou, gg)
+        taxon_ratios = cursor.fetchone()
+        if taxon_ratios:
+            hu, mou, gg = cursor.fetchone()
+            self._add_taxon_ratios(hu, mou, gg)
 
         return self
 
