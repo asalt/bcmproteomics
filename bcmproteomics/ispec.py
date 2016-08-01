@@ -121,7 +121,6 @@ class Experiment:
     def _add_taxon_ratios(self, hu, mou, gg):
         for taxa, id in ((hu, 9606), (mou, 10090), (gg, 9031)):
             self.taxon_ratios[id] = taxa
-        print(taxon_ratios)
         return self
 
     def get_extract_data(self, extractno):
