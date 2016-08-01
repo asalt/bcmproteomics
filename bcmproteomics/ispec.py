@@ -207,6 +207,7 @@ class E2G(Experiment):
     def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
         """Different metadata as well as data"""
         super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+        self.taxon_ratios = dict()
         if recno is not None and auto_populate:
             self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
@@ -249,7 +250,25 @@ class E2G(Experiment):
                                                 database=self._database)
 
         self._df = self._construct_df(sql, conn)
+        taxa_info = ("SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031 "
+                     "from {database}.iSPEC_ExperimentRuns where "
+                     "exprun_EXPRecNo={recno} "
+                     "AND exprun_EXPRunNo={runno} "
+                     "AND exprun_EXPSearchNo={searchno}").format(recno=recno,
+                                                                 runno=runno,
+                                                                 searchno=searchno,
+                database=self._database)
+        cursor = conn.cursor()
+        cursor.execute(taxa_info)
+        hu, mou, gg = cursor.fetchone()
+        self._add_taxon_ratios(hu, mou, gg)
+
         conn.close()
+        return self
+
+    def _add_taxon_ratios(self, hu, mou, gg):
+        for taxa, id in ((hu, 9606), (mou, 10090), (gg, 9031)):
+            self.taxon_ratios[id] = taxa
         return self
 
     @staticmethod
