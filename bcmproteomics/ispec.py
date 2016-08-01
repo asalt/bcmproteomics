@@ -114,7 +114,7 @@ class Experiment:
         cursor.execute(taxa_info)
         taxon_ratios = cursor.fetchone()
         if taxon_ratios:
-            hu, mou, gg = cursor.fetchone()
+            hu, mou, gg = taxon_ratios
             self._add_taxon_ratios(hu, mou, gg)
 
         return self
