@@ -335,6 +335,31 @@ class E2G(Experiment):
         return df[(df['IDSet'] < cutoff) &
                   (df['IDGroup'] <= 3)]
 
+
+    def relaxed(self, df=None, set1=False):
+        """Returns a 'relaxed' selection of gene products from the dataframe
+        Attributes
+        ----------
+        df : desired dataframe to be filtered (optional, default is E2G.df)
+
+        set1 : filter even more stringently with only IDSet 1 (optional, default False)
+        """
+
+        if df is None:
+            df = self.df
+        if not set1:
+            cutoff = 3
+        elif set1:
+            cutoff = 2
+
+        if self._joined:
+            return df[((df['IDSet_x'] < cutoff) & (df['IDGroup_x'] <= 5) |
+                      (df['IDSet_y'] < cutoff) & (df['IDGroup_y'] <= 5))]
+
+
+        return df[(df['IDSet'] < cutoff) &
+                  (df['IDGroup'] <= 5)]
+
     @property
     def tfs_coRs(self):
         """Return gene products annotated as a DBTF or CoRegulator"""
