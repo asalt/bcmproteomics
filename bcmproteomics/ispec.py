@@ -176,7 +176,7 @@ class PSMs(Experiment):
         sql = ("SELECT {psm_cols} from {database}.iSPEC_data where "
                "psm_EXPRecNo={recno} "
                "AND psm_EXPRunNo={runno} "
-               "AND psm_EXPSearchNo={searchno}").format(psm_cols = _psm_columns,
+               "AND psm_EXPSearchNo={searchno}").format(psm_cols=', '.join(_psm_columns),
                                                         recno=recno,
                                                         runno=runno,
                                                         searchno=searchno,
