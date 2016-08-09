@@ -143,8 +143,8 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
 def _expconstructor(ctrls=None, samples=None, by_pairs=False):
     """ Magically makes all the data numbers you wish to find
     """
-    ctrls = [(x,1,1) for x in ctrls if not isinstance(x,tuple)]
-    samples = [(x,1,1) for x in samples if not isinstance(x,tuple)]
+    ctrls = [(x,1,1) if not isinstance(x,tuple) else x for x in ctrls]
+    samples = [(x,1,1) if not isinstance(x,tuple) else x for x in samples]
     ctrl_e2gs = []
     conn = ispec.filedb_connect()
     if isinstance(conn, str):

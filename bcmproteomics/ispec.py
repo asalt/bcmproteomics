@@ -8,7 +8,7 @@ import pandas as pd
 from collections import OrderedDict
 import pyodbc
 from getpass import getpass
-from bcmproteomics.e2gitems import e2gcolumns
+from bcmproteomics.e2gitems import e2gcolumns, psm_columns, tmt_columns
 from bcmproteomics.classify import score_experiments
 
 user = None
@@ -21,7 +21,7 @@ class Experiment:
     """Base object for inheritance for other objects.
     Grabs metadata"""
 
-    def __init__(self, recno=None, runno=None, searchno=None):
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
         """Different metadata as well as data"""
         self.recno = recno
         self.runno = runno
@@ -33,7 +33,9 @@ class Experiment:
         self.genotype = ''
         self.added_by = ''
         self.identifiers = ''
-        if recno is not None:
+        self.taxon_ratios = dict()
+        self.labeltype = None
+        if recno is not None and auto_populate:
             self.get_metadata(recno, runno, searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
@@ -99,6 +101,35 @@ class Experiment:
             extract_fractions, extract_protocol = self.get_extract_data(self.extract_no)
             self.extract_fractions = extract_fractions
             self.extract_protocol = extract_protocol
+
+
+        additional_info = ("SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031, exprun_LabelType "
+                     "from {database}.iSPEC_ExperimentRuns where "
+                     "exprun_EXPRecNo={recno} "
+                     "AND exprun_EXPRunNo={runno} "
+                     "AND exprun_EXPSearchNo={searchno}").format(recno=recno,
+                                                                 runno=runno,
+                                                                 searchno=searchno,
+                database=self._database)
+        cursor = conn.cursor()
+        cursor.execute(additional_info)
+        additional_info_result = cursor.fetchone()
+        if additional_info_result:
+            hu, mou, gg, labeltype = additional_info_result
+            self._add_taxon_ratios(hu, mou, gg)
+            self._assign_labeltype(labeltype)
+
+        return self
+
+    def _assign_labeltype(self, labeltype=None):
+        self.labeltype = labeltype
+        return self
+
+
+
+    def _add_taxon_ratios(self, hu, mou, gg):
+        for taxa, id in ((hu, '9606'), (mou, '10090'), (gg, '9031')):
+            self.taxon_ratios[id] = taxa
         return self
 
     def get_extract_data(self, extractno):
@@ -117,11 +148,17 @@ class Experiment:
     def _database(self):
         return params.get('database')
 
+    def to_json(self):
+        json_data = json.dumps(self.__dict__)
+
 class PSMs(Experiment):
-    """An object for working with iSPEC PSMs data at BCM"""
-    def __init__(self, recno=None, runno=None, searchno=None):
-        super().__init__(recno=recno, runno=runno, searchno=searchno)
-        if recno is not None:
+    """An object for working with iSPEC PSMs data at BCM
+    presplit : bool, default False. If True, returns only the original record of PSMs before
+        duplication based on the number of potential geneids each PSM could map to."""
+    def __init__(self, recno=None, runno=None, searchno=None, presplit=False, auto_populate=True):
+        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+        self.presplit = presplit
+        if recno is not None and auto_populate:
             self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
@@ -133,11 +170,14 @@ class PSMs(Experiment):
         conn = filedb_connect()
         if isinstance(conn, str):
             return # failed to make connection, user is informed in filedb_connect()
-
-        sql = ("SELECT * from {database}.iSPEC_data where "
+        _psm_columns = psm_columns.copy()
+        if 'tmt' in self.labeltype.lower():
+            _psm_columns += tmt_columns
+        sql = ("SELECT {psm_cols} from {database}.iSPEC_data where "
                "psm_EXPRecNo={recno} "
                "AND psm_EXPRunNo={runno} "
-               "AND psm_EXPSearchNo={searchno}").format(recno=recno,
+               "AND psm_EXPSearchNo={searchno}").format(psm_cols=', '.join(_psm_columns),
+                                                        recno=recno,
                                                         runno=runno,
                                                         searchno=searchno,
                                                         database=self._database
@@ -201,10 +241,10 @@ class E2G(Experiment):
     note that many methods on E2G are (currently) unavailable with a joined E2G instance
     ----------
     """
-    def __init__(self, recno=None, runno=None, searchno=None):
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
         """Different metadata as well as data"""
-        super().__init__(recno=recno, runno=runno, searchno=searchno)
-        if recno is not None:
+        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+        if recno is not None and auto_populate:
             self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
@@ -213,6 +253,9 @@ class E2G(Experiment):
 
     def __add__(self, other):
         return join_exps(self, other)
+
+    def __len__(self):
+        return len(self.df)
 
     @property
     def df(self):
@@ -245,6 +288,7 @@ class E2G(Experiment):
         self._df = self._construct_df(sql, conn)
         conn.close()
         return self
+
 
     @staticmethod
     def _construct_df(sql, conn):
@@ -303,6 +347,31 @@ class E2G(Experiment):
 
         return df[(df['IDSet'] < cutoff) &
                   (df['IDGroup'] <= 3)]
+
+
+    def relaxed(self, df=None, set1=False):
+        """Returns a 'relaxed' selection of gene products from the dataframe
+        Attributes
+        ----------
+        df : desired dataframe to be filtered (optional, default is E2G.df)
+
+        set1 : filter even more stringently with only IDSet 1 (optional, default False)
+        """
+
+        if df is None:
+            df = self.df
+        if not set1:
+            cutoff = 3
+        elif set1:
+            cutoff = 2
+
+        if self._joined:
+            return df[((df['IDSet_x'] < cutoff) & (df['IDGroup_x'] <= 5) |
+                      (df['IDSet_y'] < cutoff) & (df['IDGroup_y'] <= 5))]
+
+
+        return df[(df['IDSet'] < cutoff) &
+                  (df['IDGroup'] <= 5)]
 
     @property
     def tfs_coRs(self):
@@ -534,7 +603,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
 
     Optional seed argument sets seed for random forest classifier.
     """
-    if any(type(exp) is not E2G for exp in [exp1, exp2]):
+    if not any(isinstance(exp, E2G) for exp in [exp1, exp2]):
         raise  TypeError('Incorrect input type')
 
     for exp in [exp1, exp2]:

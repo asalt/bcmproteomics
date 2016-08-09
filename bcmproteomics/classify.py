@@ -5,9 +5,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-from sklearn.cross_validation import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn.cross_validation import train_test_split, StratifiedKFold
+from sklearn.metrics import confusion_matrix, precision_recall_curve, average_precision_score
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import label_binarize
+from sklearn.feature_selection import RFECV
+
+
 def score_experiments(exp1_2, seed=None):
     """Classify gene products from joined E2G files
     based on supervised machine learning algorithm random forest"""
@@ -308,3 +312,117 @@ def test_training_data(plot=False, n=None, seed=None):
                     'Peptide\nCount_u2g', 'iBAQ\ndstrAdj']  # modify here to change features
     _feature_importance(clf, feature_cols)
     return cm
+
+
+def roc(merge_cats=True, subsample=True):
+    X, y, df = get_training_data(subsample=subsample, merge_cats=merge_cats)
+    # y_b = label_binarize(y, classes=['U', 'S', 'D'])
+    # n_classes = y_b.shape[1]
+    # shuffle and split training and test sets
+    # y_test_b = label_binarize(y_test, classes=['U', 'S', 'D'])
+    # probas_ = classifier.fit(X_train, y_train).predict_proba(X_test)
+    # y_predict = classifier.fit(X_train, y_train).predict(X_test)
+    classifier = get_classifier()
+    mean_tpr = 0.0
+    mean_fpr = np.linspace(0, 1, 100)
+    all_tpr = []
+    fig, ax = plt.subplots()
+    classes = list(set(y))
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.5,
+                                                        random_state=None)
+    for USD in classes:
+        y_test_sub = np.array([1 if value == USD else 0 for value in y_test])
+        # y_test_sub = np.random.random_integers(0, 1, size=len(y_test))
+        y_predict_sub = np.array([1 if value == USD else 0 for value in y_test])
+        probas_ = classifier.fit(X_train, y_train).predict_proba(X_test)
+        ix = classifier.classes_.tolist().index(USD)
+        # fpr, tpr, thresholds = roc_curve(y_test_sub, y_predict_sub,
+                                         # pos_label=1)
+        fpr, tpr, thresholds = roc_curve(y_test_sub, probas_[:, ix],)
+        mean_tpr += interp(mean_fpr, fpr, tpr)
+        mean_tpr[0] = 0.0
+        roc_auc = auc(fpr, tpr)
+        ax.plot(fpr, tpr, lw=1, label='ROC fold %s (area = %0.2f)' % (USD, roc_auc))
+    # y_score = classifier.fit(X_train, y_train).decision_function(X_test)
+    mean_tpr /= len(classifier.classes_)
+    mean_tpr[-1] = 1.0
+    mean_auc = auc(mean_fpr, mean_tpr)
+    ax.plot(mean_fpr, mean_tpr, 'k--',
+            label='Mean ROC (area = %0.2f)' % mean_auc, lw=2)
+    ax.plot([0, 1], [0, 1], '--', color=(0.6, 0.6, 0.6), label='Luck')
+    ax.set_xlim([-0.05, 1.05])
+    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+    ax.set_title('Receiver Operating Characteristic')
+    ax.legend(loc="lower right")
+    # ax.show()
+
+def precision_recall(merge_cats=True, subsample=True, random_state=None):
+    X, y, df = get_training_data(subsample=subsample, merge_cats=merge_cats)
+    classifier = get_classifier()
+    # fig, ax = plt.subplots()
+    classes = list(set(y))
+    n_classes = len(classes)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.5,
+                                                        random_state=None)
+    y_score = classifier.fit(X_train, y_train).predict_proba(X_test)
+    y_test = label_binarize(y_test, classes=classifier.classes_)
+    # Run classifier
+    # classifier = OneVsRestClassifier(classifier,)
+    # Compute Precision-Recall and plot curve
+    precision = dict()
+    recall = dict()
+    average_precision = dict()
+    for i in range(n_classes):
+        precision[i], recall[i], _ = precision_recall_curve(y_test[:, i],
+                                                            y_score[:, i])
+        average_precision[i] = average_precision_score(y_test[:, i], y_score[:, i])
+
+        # Compute micro-average ROC curve and ROC area
+        precision["micro"], recall["micro"], _ = precision_recall_curve(y_test.ravel(),
+            y_score.ravel())
+        average_precision["micro"] = average_precision_score(y_test, y_score,
+                                                            average="micro")
+
+        #plt.clf()
+        plt.plot(recall[0], precision[0], label='Precision-Recall curve')
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.ylim([0.0, 1.05])
+        plt.xlim([0.0, 1.0])
+        plt.title('Precision-Recall example: AUC={0:0.2f}'.format(average_precision[0]))
+        plt.legend(loc="lower left")
+        plt.show()
+
+    # Plot Precision-Recall curve for each class
+    plt.clf()
+    plt.plot(recall["micro"], precision["micro"],
+            label='micro-average Precision-recall curve (area = {0:0.2f})'
+                ''.format(average_precision["micro"]))
+    for i, c in enumerate(classifier.classes_):
+        plt.plot(recall[i], precision[i],
+                label='Precision-recall curve of class {0} (area = {1:0.2f})'
+                    ''.format(c, average_precision[i]))
+
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Extension of Precision-Recall curve to multi-class')
+    plt.legend(loc="lower right")
+    plt.show() # Plot Precision-Recall curve
+
+def recursive_feature_elimation_cv(subsample=True, merge_cats=True):
+    classifier = get_classifier()
+    X, y, df = get_training_data(subsample=subsample, merge_cats=merge_cats)
+    rfecv = RFECV(estimator=classifier, step=1, cv=StratifiedKFold(y, 2),
+    scoring='accuracy')
+    rfecv.fit(X, y)
+    print("Optimal number of features : %d" % rfecv.n_features_)
+    # Plot number of features VS. cross-validation scores
+    plt.figure()
+    plt.xlabel("Number of features selected")
+    plt.ylabel("Cross validation score (nb of correct classifications)")
+    plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
+    plt.show()
