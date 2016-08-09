@@ -11,18 +11,18 @@ e2gcolumns = ['e2g_'+ c for c in ['GeneID', 'IDSet', 'IDGroup',
                                   'n_iBAQ_dstrAdj',
 ]]
 
-psm_columns = ['AUC_UseFLAG', 'ActivationType', 'AddedBy', 'Charge', 'CreationTS',
-               'DeltaCn', 'DeltaMassDa', 'DeltaMassPPM', 'DeltaScore', 'EXPRecNo',
-               'EXPRunNo', 'EXPSearchNo', 'EXPTechRepNo', 'FirstScan', 'GeneCount',
-               'GeneID', 'GeneList', 'HID', 'HIDCount', 'HIDList', 'IonInjectTime',
-               'IonScore', 'IsolationInterference', 'LabelFLAG', 'MHDa', 'MSOrder',
-               'MatchedIons', 'MissedCleavages', 'ModificationTS', 'Modifications',
-               'PEP', 'PSMAmbiguity', 'PSM_IDG', 'PSM_UseFLAG', 'Peak_UseFLAG',
-               'PeptRank', 'PrecursorArea', 'PrecursorArea_dstrAdj', 'ProteinCount',
-               'ProteinGI', 'ProteinList', 'QuanInfo', 'QuanUsage', 'RTmin', 'Rank',
-               'SearchEngineRank', 'Sequence', 'SequenceArea', 'SequenceModi',
-               'SequenceModiCount', 'SpectrumFile', 'TaxonCount', 'TaxonID',
-               'TaxonIDList', 'mzDa', 'oriFLAG', 'q_value'
+psm_columns = ['psm_AUC_UseFLAG', 'ActivationType', 'psm_AddedBy', 'Charge', 'psm_CreationTS',
+               'DeltaCn', 'DeltaMassDa', 'DeltaMassPPM', 'DeltaScore', 'psm_EXPRecNo',
+               'psm_EXPRunNo', 'psm_EXPSearchNo', 'FirstScan', 'psm_GeneCount',
+               'psm_GeneID', 'psm_GeneList', 'psm_HID', 'psm_HIDCount', 'psm_HIDList',
+               'IonInjectTime', 'IonScore', 'IsolationInterference', 'psm_LabelFLAG', 'MHDa',
+               'MSOrder', 'MatchedIons', 'MissedCleavages', 'psm_ModificationTS', 'Modifications',
+               'PEP', 'PSMAmbiguity', 'psm_PSM_IDG', 'psm_PSM_UseFLAG', 'psm_Peak_UseFLAG',
+               'psm_PeptRank', 'PrecursorArea', 'psm_PrecursorArea_dstrAdj', 'psm_ProteinCount',
+               'psm_ProteinGI', 'psm_ProteinList', 'QuanInfo', 'QuanUsage', 'RTmin', 'Rank',
+               'SearchEngineRank', 'Sequence', 'psm_SequenceArea', 'psm_SequenceModi',
+               'psm_SequenceModiCount', 'SpectrumFile', 'psm_TaxonCount', 'psm_TaxonID',
+               'psm_TaxonIDList', 'mzDa', 'psm_oriFLAG', 'q_value'
 ]
 
 tmt_columns = ['TMT_126', 'TMT_127_C', 'TMT_127_N', 'TMT_128_C', 'TMT_128_N', 'TMT_129_C',
