@@ -8,7 +8,7 @@ import pandas as pd
 from collections import OrderedDict
 import pyodbc
 from getpass import getpass
-from bcmproteomics.e2gitems import e2gcolumns
+from bcmproteomics.e2gitems import e2gcolumns, psm_columns, tmt_columns
 from bcmproteomics.classify import score_experiments
 
 user = None
@@ -34,6 +34,7 @@ class Experiment:
         self.added_by = ''
         self.identifiers = ''
         self.taxon_ratios = dict()
+        self.labeltype = None
         if recno is not None and auto_populate:
             self.get_metadata(recno, runno, searchno) # self._df gets set through here
         else:
@@ -102,7 +103,7 @@ class Experiment:
             self.extract_protocol = extract_protocol
 
 
-        taxa_info = ("SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031 "
+        additional_info = ("SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031, exprun_LabelType "
                      "from {database}.iSPEC_ExperimentRuns where "
                      "exprun_EXPRecNo={recno} "
                      "AND exprun_EXPRunNo={runno} "
@@ -111,13 +112,19 @@ class Experiment:
                                                                  searchno=searchno,
                 database=self._database)
         cursor = conn.cursor()
-        cursor.execute(taxa_info)
-        taxon_ratios = cursor.fetchone()
-        if taxon_ratios:
-            hu, mou, gg = taxon_ratios
+        cursor.execute(additional_info)
+        additional_info_result = cursor.fetchone()
+        if additional_info_result:
+            hu, mou, gg, labeltype = additional_info_result
             self._add_taxon_ratios(hu, mou, gg)
+            self._assign_labeltype(labeltype)
 
         return self
+
+    def _assign_labeltype(self, labeltype=None):
+        self.labeltype = labeltype
+        return self
+
 
 
     def _add_taxon_ratios(self, hu, mou, gg):
@@ -145,9 +152,12 @@ class Experiment:
         json_data = json.dumps(self.__dict__)
 
 class PSMs(Experiment):
-    """An object for working with iSPEC PSMs data at BCM"""
-    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
+    """An object for working with iSPEC PSMs data at BCM
+    presplit : bool, default False. If True, returns only the original record of PSMs before
+        duplication based on the number of potential geneids each PSM could map to."""
+    def __init__(self, recno=None, runno=None, searchno=None, presplit=False, auto_populate=True):
         super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+        self.presplit = presplit
         if recno is not None and auto_populate:
             self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
@@ -160,11 +170,14 @@ class PSMs(Experiment):
         conn = filedb_connect()
         if isinstance(conn, str):
             return # failed to make connection, user is informed in filedb_connect()
-
-        sql = ("SELECT * from {database}.iSPEC_data where "
+        _psm_columns = psm_columns.copy()
+        if 'tmt' in self.labeltype.lower():
+            _psm_columns += tmt_columns
+        sql = ("SELECT {psm_cols} from {database}.iSPEC_data where "
                "psm_EXPRecNo={recno} "
                "AND psm_EXPRunNo={runno} "
-               "AND psm_EXPSearchNo={searchno}").format(recno=recno,
+               "AND psm_EXPSearchNo={searchno}").format(psm_cols = _psm_columns,
+                                                        recno=recno,
                                                         runno=runno,
                                                         searchno=searchno,
                                                         database=self._database
