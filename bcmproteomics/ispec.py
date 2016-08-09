@@ -146,9 +146,9 @@ class Experiment:
 
 class PSMs(Experiment):
     """An object for working with iSPEC PSMs data at BCM"""
-    def __init__(self, recno=None, runno=None, searchno=None):
-        super().__init__(recno=recno, runno=runno, searchno=searchno)
-        if recno is not None:
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
+        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+        if recno is not None and auto_populate:
             self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
