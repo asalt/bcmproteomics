@@ -295,6 +295,7 @@ class E2G(Experiment):
         """Construct a pandas dataframe from data in the iSPEC.
         """
         df = pd.read_sql(sql, conn, index_col='e2g_GeneID')
+        df.index = df.index.astype('object')
         df.rename(columns={k: k.split('e2g_')[1] for k in
                [e2gcol for e2gcol in df.columns if e2gcol.startswith('e2g_')]},
              inplace=True)
@@ -302,6 +303,7 @@ class E2G(Experiment):
                   inplace=True)
 
         df.index.rename('GeneID',inplace=True)
+        df.GeneID = df.GeneID.astype('object')
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
         geneidlist = [str(int(x)) for x in df.index.tolist() if not np.isnan(x)]
         genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
@@ -314,6 +316,7 @@ class E2G(Experiment):
             generename = {c: c.split('gene_')[1] for c in genedf.columns}
             genedf.rename(columns=generename, inplace=True)
             genedf.index.rename('GeneID', inplace=True)
+            df.index = df.index.astype('object')
             genedf.rename(columns={'u2gPeptIBAQAveCount':'GeneCapacity'}, inplace=True)
             #df['e2g_GeneCapacity'] = df['e2g_nGPArea_Sum_dstrAdj']/df['e2g_nGPArea_Sum_dstrAdj']
             #funcat_table = pd.read_table('E:/reference_databases/iSPEC_genes_Aug_2015.tab')
