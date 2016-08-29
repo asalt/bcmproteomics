@@ -41,8 +41,20 @@ def _find_file(target, path):
     return None
 
 class Experiment:
-    """Base object for inheritance for other objects.
-    Grabs metadata"""
+    """Container for accessing metadata for a given experiment.
+
+    :param recno: int/str for record number
+    :param runno: int/str, default 1
+    :param searchno: int/str, default 1
+    :param auto_populate: Whether or not to try to auto populate the data, default True
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+    :returns: Experiment instance
+    :rtype: ispec.Experiment
+
+    .. note::
+        If data_dir is specified, data will *automatically* be saved in the given directory
+    """
 
     def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None):
         """Loads metadata for a given experiment.
@@ -55,7 +67,8 @@ class Experiment:
                          If specified, will first look in data_dir for data before making network calls
         :returns: Experiment instance
         :rtype: ispec.Experiment
-
+        .. note::
+            If data_dir is specified, data will **automatically** be saved in the given directory
         """
 
         self.recno = recno
@@ -91,8 +104,9 @@ class Experiment:
 
     @property
     def df(self):
-        """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
+        "Placeholder"
         return self._df
+
     @property
     def _database(self):
         return params.get('database')
@@ -263,10 +277,37 @@ class Experiment:
 
 
 class PSMs(Experiment):
-    """An object for working with iSPEC PSMs data at BCM
-    presplit : bool, default False. If True, returns only the original record of PSMs before
-        duplication based on the number of potential geneids each PSM could map to."""
+    """Container for accessing psms data for a given experiment
+
+    :param recno: int/str for record number
+    :param runno: int/str, default 1
+    :param searchno: int/str, default 1
+    :param auto_populate: Whether or not to try to auto populate the data, default True
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+    :returns: PSMs instance
+    :rtype: ispec.PSMs
+
+    .. seealso:: ispec.Experiment
+    .. todo:: add presplit support
+
+    """
     def __init__(self, recno=None, runno=None, searchno=None, presplit=False, auto_populate=True, data_dir=None):
+        """Container for accessing psms data for a given experiment
+
+        :param recno: int/str for record number
+        :param runno: int/str, default 1
+        :param searchno: int/str, default 1
+        :param auto_populate: Whether or not to try to auto populate the data, default True
+        :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+        :returns: PSMs instance
+        :rtype: ispec.PSMs
+
+        .. seealso:: ispec.Experiment
+        .. todo:: add presplit support
+
+        """
         super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate, data_dir=data_dir)
         self.presplit = presplit
         if recno is not None and auto_populate:
@@ -332,8 +373,6 @@ class PSMs(Experiment):
 
     def load_local(self, data_dir=None):
         """Try to load the data from disk rather than over network.
-        This method is usually invoked automatically and does not usually
-        need to be manually invoked.
 
         :param data_dir: (Optional) Directory to save data.
                          Uses self.data_dir if not specified here.
@@ -350,44 +389,36 @@ class PSMs(Experiment):
         return self
 
 class E2G(Experiment):
-    """ An object for working with iSPEC Proteomics data at BCM
+    """Container for accessing gene product data for a given experiment
 
-    Attributes
-    ----------
-    df : pandas DataFrame of the experimental data
+    :param recno: int/str for record number
+    :param runno: int/str, default 1
+    :param searchno: int/str, default 1
+    :param auto_populate: Whether or not to try to auto populate the data, default True
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+    :returns: E2G instance
+    :rtype: ispec.E2G
 
-    recno : experimental record number
+    .. seealso:: ispec.Experiment
 
-    runno : experimental run number
-
-    sample : experimental sample cell/tissue
-
-    treatment : any applied treatment
-
-    exptype : type of experiment (Profile, Affinity, ...)
-
-    genotype : genotype for the experiment
-    ----------
-
-    Initialize a new experiment object and grab your data:
-    >>> import BCM_proteomics as BCM
-    >>> BCM.user = 'username'
-    >>> BCM.pw = 'password'
-    >>> exp = BCM.E2G(recno=12345, runno=1) # note runno defaults to 1
-
-    ----------
-
-    Multiple E2G instances can be joined using join_exps:
-    >>> from bcmproteomcs import ispec
-    >>> exp1 = ispec.E2G(12345,1)
-    >>> exp2 = ispec.E2G(12345,2)
-    >>> exp1_2 = ispec.join_exps(exp1, exp2) (or exp1_2 = exp1 + exp2)
-
-    note that many methods on E2G are (currently) unavailable with a joined E2G instance
-    ----------
-    """
+        """
     def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None):
-        """Different metadata as well as data"""
+        """Container for accessing gene product data for a given experiment
+
+        :param recno: int/str for record number
+        :param runno: int/str, default 1
+        :param searchno: int/str, default 1
+        :param auto_populate: Whether or not to try to auto populate the data, default True
+        :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+        :returns: E2G instance
+        :rtype: ispec.E2G
+
+        .. seealso:: ispec.Experiment
+
+        """
+        # """Different metadata as well as data"""
         super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate, data_dir=data_dir)
         if recno is not None and auto_populate:
             if data_dir is not None:
@@ -407,7 +438,12 @@ class E2G(Experiment):
 
     @property
     def df(self):
-        """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
+        """Data for the experiment
+
+        :returns: df
+        :rtype: pandas.DataFrame
+
+        """
         return self._df
 
     def reload(self):
