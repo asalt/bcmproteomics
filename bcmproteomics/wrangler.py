@@ -184,6 +184,7 @@ def make_heatmap(data, gene_ids=None, ax=None, order=None, cmap='YlOrRd', square
         mydata = data.loc[gene_ids][[x for x in data.columns if pat.match(x)]]
     else:
         mydata = data[[x for x in data.columns if pat.match(x)]]
+    mydata.columns = [x.replace('_','-') for x in mydata.columns]
 
     if ax is None:
         fig, ax = plt.subplots()

@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from sklearn.cross_validation import train_test_split, StratifiedKFold
-from sklearn.metrics import confusion_matrix, precision_recall_curve, average_precision_score
+from sklearn.metrics import confusion_matrix, precision_recall_curve, average_precision_score, roc_curve
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import label_binarize
 from sklearn.feature_selection import RFECV
