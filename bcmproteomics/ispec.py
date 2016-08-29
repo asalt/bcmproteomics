@@ -89,11 +89,9 @@ class Experiment:
         self._df = pd.DataFrame() # else set as empty dataframe
         if recno is not None and auto_populate:
             if self.data_dir is not None:
-                self.load_local(self.data_dir)
+                self.load_local_metadata(self.data_dir)
             else:
                 self.get_metadata(recno, runno, searchno) # self._df gets set through here
-        else:
-            self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
         self.ibaq_normalize = None
 
@@ -116,9 +114,6 @@ class Experiment:
         if self._joined:
             raise NotImplementedError('Cannot reload data for a joined experiment.')
         self.get_exprun(self.recno, self.runno, self.searchno)
-
-    def get_ex():
-        pass
 
     def get_metadata(self, recno, runno, searchno):
         if not recno:
@@ -250,7 +245,7 @@ class Experiment:
             json.dump(self.json_metadata, metaf)
         return
 
-    def load_local(self, data_dir=None):
+    def load_local_metadata(self, data_dir=None):
         """Try to load the data from disk rather than over network.
         This method is usually invoked automatically and does not usually
         need to be manually invoked.
@@ -358,7 +353,7 @@ class PSMs(Experiment):
             raise NotImplementedError('Cannot reload data for a joined experiment.')
         self.get_exprun(self.recno, self.runno, self.searchno)
 
-    def save_data(self, data_dir=None):
+    def save(self, data_dir=None):
         """Save data to given directory. Called automatically if data_dir is provided
         and data not present locally
 
@@ -368,7 +363,10 @@ class PSMs(Experiment):
         :rtype: NoneType
 
         """
-        with open(os.path.join(DATA_DIR, '{!r}_psms.tab'.format(self)), 'w') as data:
+        if data_dir is None:
+            data_dir = self.data_dir
+        super().save(data_dir=data_dir)
+        with open(os.path.join(data_dir, '{!r}_psms.tab'.format(self)), 'w') as data:
             self.df.to_csv(data, sep='\t')
 
     def load_local(self, data_dir=None):
@@ -380,12 +378,13 @@ class PSMs(Experiment):
         :rtype: ispec.PSMs
 
         """
-        super().load_local(data_dir=data_dir)
+        self.load_local_metadata(data_dir=data_dir)
         psmsfile = _find_file(target='{!r}_psms.tab'.format(self), path=data_dir)
         if psmsfile is None:
             self.get_exprun(self.recno, self.runno, self.searchno)
-            self.save_data(data_dir)
-        self._df = pd.read_table(psmsfile, index_col='GeneID')
+            self.save(data_dir)
+        else:
+            self._df = pd.read_table(psmsfile, index_col='GeneID')
         return self
 
 class E2G(Experiment):
@@ -511,7 +510,7 @@ class E2G(Experiment):
         df['GeneID'] = df.index  # put index in its own column as well for easy access
         return df
 
-    def save_data(self, data_dir=None):
+    def save(self, data_dir=None):
         """Save data to given directory. Called automatically if data_dir is provided
         and data not present locally
 
@@ -521,7 +520,12 @@ class E2G(Experiment):
         :rtype: NoneType
 
         """
-        with open(os.path.join(DATA_DIR, '{!r}_e2g.tab'.format(self)), 'w') as data:
+        if data_dir is None:
+            data_dir = self.data_dir
+        super().save(data_dir=data_dir)
+        if len(self.df) == 0: # don't save if no data!
+            return
+        with open(os.path.join(data_dir, '{!r}_e2g.tab'.format(self)), 'w') as data:
             self.df.to_csv(data, sep='\t')
 
     def load_local(self, data_dir=None):
@@ -535,12 +539,14 @@ class E2G(Experiment):
         :rtype: ispec.E2G
 
         """
-        super().load_local(data_dir=data_dir)
+        self.load_local_metadata(data_dir=data_dir)
         e2gfile = _find_file(target='{!r}_e2g.tab'.format(self), path=data_dir)
         if e2gfile is None:
             self.get_exprun(self.recno, self.runno, self.searchno)
-            self.save_data(data_dir)
-        self._df = pd.read_table(e2gfile, index_col='GeneID')
+            self.save(data_dir)
+        else:
+            self._df = pd.read_table(e2gfile, index_col='GeneID')
+            self.df['FunCats'] = self.df['FunCats'].fillna('')
         return self
 
     def strict(self, df=None, set1=False):
