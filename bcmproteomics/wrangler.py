@@ -1,7 +1,7 @@
 """utilities for wrangling data"""
 import re
 import numpy as np
-from scipy import stats
+import scipy
 from statsmodels.stats.multitest import multipletests
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -122,6 +122,50 @@ def aggregate_data(exps, area_col='iBAQ_dstrAdj', normalize=None, tofilter=None,
 
     return norm_df
 
+def preformatted_t_test(df, sample1, sample2, equal_var=True, alpha=0.05, multiple_correction=True,
+                        correction_type=None, area_col='iBAQ_dstrAdj'):
+    """Perform a t test (or Wilcoxian) by row on a pandas DataFrame.
+    This function gets called by wrangler.t_test to do the actual calculation,
+    but may be called directly on a preformatted DataFrame if needed.
+
+    :param sample1: name of columns for the first set of samples
+    :param sample2: name of columns for the second set of samples
+    :param equal_var: whether or not to assume equal variance (default True)
+    :param alpha: p value cutoff value (default 5%)
+    :param multiple_correction: whether or not to apply multiple testing correction (default False)
+    :param correction_type: algorithm to use for multiple testing corrections
+    .. seealso:: statsmodels.stats.multitest.multipletests
+    :param area_col: The name of the column to use as the testing value (default iBAQ_dstrAdj)
+    :returns: modified DataFrame with testing statistics
+    :rtype: pandas.DataFrame
+
+    .. seealso:: wrangler.t_test
+
+    """
+    if correction_type is None:
+        correction_type = 'fdr_tsbky'
+    df['mean1'] = df[sample1].mean(axis=1)
+    df['mean2'] = df[sample2].mean(axis=1)
+    df['std1'] = df[sample1].std(axis=1)
+    df['std2'] = df[sample2].std(axis=1)
+    df['fold_change'] = np.divide(df['mean2'], df['mean1'])
+    numeric_max = df.fold_change.replace(np.inf,0).max()  # max that isn't infinity
+    df['fold_change'] = df['fold_change'].replace(np.inf, numeric_max+.05*numeric_max)
+    df['fold_change'].fillna(0, inplace=True)
+
+    df['t_stat'], \
+    df['p_value'] = \
+                    list(zip(*df.apply(lambda x : scipy.stats.ttest_ind(x[sample1],
+                                                                        x[sample2],
+                                                                        equal_var=equal_var),
+                    axis=1)))
+    if multiple_correction:
+        fdr_out = multipletests(df.p_value.fillna(1), alpha=alpha, method=correction_type)
+        df['fdr_pass'] = fdr_out[0]
+    else:
+        df['fdr_pass'] = True
+    return df
+
 def t_test(set1, set2, equal_var=True, alpha=0.05, multiple_correction=True, correction_type=None,
            area_col='iBAQ_dstrAdj', tofilter=None):
     """Input is two lists of E2G experiments to be compared
@@ -135,26 +179,8 @@ def t_test(set1, set2, equal_var=True, alpha=0.05, multiple_correction=True, cor
     df = df.reindex_axis( [repr(x) for x in set1+set2], axis=1)
     sample1 = df.columns[0:set1_len]
     sample2 = df.columns[set1_len::]
-    df['mean1'] = df[sample1].mean(axis=1)
-    df['mean2'] = df[sample2].mean(axis=1)
-    df['std1'] = df[sample1].std(axis=1)
-    df['std2'] = df[sample2].std(axis=1)
-    df['fold_change'] = np.divide(df['mean2'], df['mean1'])
-    numeric_max = df.fold_change.replace(np.inf,0).max()  # max that isn't infinity
-    df['fold_change'] = df['fold_change'].replace(np.inf, numeric_max+.05*numeric_max)
-    df['fold_change'].fillna(0, inplace=True)
-
-    df['t_stat'], \
-    df['p_value'] = \
-                    list(zip(*df.apply(lambda x : stats.ttest_ind(x[sample1],
-                                                                  x[sample2],
-                                                                  equal_var=equal_var),
-                    axis=1)))
-    if multiple_correction:
-        fdr_out = multipletests(df.p_value.fillna(1), alpha=alpha, method=correction_type)
-        df['fdr_pass'] = fdr_out[0]
-    else:
-        df['fdr_pass'] = True
+    df = preformatted_t_test(df, sample1, sample2, equal_var, alpha, multiple_correction, correction_type,
+                             area_col)
     return df
 
 def volcanoplot(data, ax=None):

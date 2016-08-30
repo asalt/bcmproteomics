@@ -37,7 +37,7 @@ def _find_file(target, path):
     """
     result = [x for x in os.listdir(path) if x == target]
     if result:
-        return result[0]
+        return os.path.abspath(os.path.join(path, result[0]))
     return None
 
 class Experiment:
