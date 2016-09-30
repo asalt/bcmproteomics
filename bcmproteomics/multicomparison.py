@@ -140,27 +140,27 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
     #up_df.to_csv(outpath+u_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
     #down_df.to_csv(outpath+d_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
 
-def _expconstructor(ctrls=None, samples=None, by_pairs=False):
+def _expconstructor(ctrls=None, samples=None, by_pairs=False, data_dir=None):
     """ Magically makes all the data numbers you wish to find
     """
     ctrls = [(x,1,1) if not isinstance(x,tuple) else x for x in ctrls]
     samples = [(x,1,1) if not isinstance(x,tuple) else x for x in samples]
     ctrl_e2gs = []
-    conn = ispec.filedb_connect()
-    if isinstance(conn, str):
-        print('Unable to connect to iSPEC')
-        print(conn)
-        return None
+    # conn = ispec.filedb_connect()
+    # if isinstance(conn, str):
+    #     print('Unable to connect to iSPEC')
+    #     print(conn)
+    #     return None
     print('Loading data from iSPEC, please wait...')
     for ctrl in ctrls:
-        exp = ispec.E2G(*ctrl)
+        exp = ispec.E2G(*ctrl, data_dir=data_dir)
         if len(exp.df) != 0: # only pick exps that have data!
             ctrl_e2gs.append(exp)
         elif len(exp.df) == 0:
             print('No data for ', exp, '\nSkipping')
     sample_e2gs = []
     for sample in samples:
-        exp = ispec.E2G(*sample)
+        exp = ispec.E2G(*sample, data_dir=data_dir)
         if len(exp.df) != 0: # only pick exps that have data!
             sample_e2gs.append(exp)
         elif len(exp.df) == 0:
@@ -172,7 +172,7 @@ def _expconstructor(ctrls=None, samples=None, by_pairs=False):
     return pairs
 
 def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=None,
-                    taxon_normalize=None, seed=None, by_pairs=False):
+                    taxon_normalize=None, seed=None, by_pairs=False, data_dir=None):
     """
 
     Function to run combinations of pairwise comparisons of experimental results located
@@ -192,6 +192,8 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
                             for a given experiment
     :param seed: (optional) set seed for random forest classifier (default None)
     :param by_pairs: (optional) only do comparisons by pairs based on the ordering of the experiments
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
     :returns: up_df, down_df
     :rtype: pd.DataFrame, pd.DataFrame
 

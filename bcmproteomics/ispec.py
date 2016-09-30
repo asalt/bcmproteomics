@@ -812,6 +812,25 @@ def get_geneids(taxonid):
     genes = [int(g) for gid in gids for g in gid]
     return genes
 
+def get_all_funcats(taxonid, data_dir=None):
+    """Get all the gene information for a given taxonid.
+
+    Optional data_dir argument will first look for output file
+    in given directory.
+    If not found, will make network call and save results there."""
+    fname = 'geneinfo_{}.tab'.format(taxonid)
+
+    if data_dir:
+        f = _find_file(fname, data_dir)
+        if f is not None:
+            return pd.read_table(f)
+
+    gids = get_geneids(taxonid)
+    funcats = get_funcats(gids)
+    if data_dir:
+        funcats.to_csv(os.path.join(data_dir, fname), sep='\t')
+    return funcats
+
 def join_exps(exp1, exp2, normalize=None, seed=None):
     """Nice outer join two experiments based on their geneids. Useful for comparing between experiments.
     Keeps gene information as well.
