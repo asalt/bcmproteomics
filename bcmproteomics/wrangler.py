@@ -122,8 +122,16 @@ def aggregate_data(exps, area_col='iBAQ_dstrAdj', normalize=None, tofilter=None,
 
     return norm_df
 
+def _t_test(x1, x2, equal_var=True):
+    "returns t stat and p value"
+    try:
+        stat = scipy.stats.ttest_ind(x1, x2, equal_var=equal_var),
+        return stat[0]
+    except ZeroDivisionError:
+        return 0, 1,
+
 def preformatted_t_test(df, sample1, sample2, equal_var=True, alpha=0.05, multiple_correction=True,
-                        correction_type=None, area_col='iBAQ_dstrAdj'):
+                        correction_type=None):
     """Perform a t test (or Wilcoxian) by row on a pandas DataFrame.
     This function gets called by wrangler.t_test to do the actual calculation,
     but may be called directly on a preformatted DataFrame if needed.
@@ -135,7 +143,6 @@ def preformatted_t_test(df, sample1, sample2, equal_var=True, alpha=0.05, multip
     :param multiple_correction: whether or not to apply multiple testing correction (default False)
     :param correction_type: algorithm to use for multiple testing corrections
     .. seealso:: statsmodels.stats.multitest.multipletests
-    :param area_col: The name of the column to use as the testing value (default iBAQ_dstrAdj)
     :returns: modified DataFrame with testing statistics
     :rtype: pandas.DataFrame
 
@@ -152,13 +159,12 @@ def preformatted_t_test(df, sample1, sample2, equal_var=True, alpha=0.05, multip
     numeric_max = df.fold_change.replace(np.inf,0).max()  # max that isn't infinity
     df['fold_change'] = df['fold_change'].replace(np.inf, numeric_max+.05*numeric_max)
     df['fold_change'].fillna(0, inplace=True)
+    stat = df.apply(lambda x : _t_test(x[sample1],
+                                       x[sample2],
+                                       equal_var=equal_var),
+    axis=1)
 
-    df['t_stat'], \
-    df['p_value'] = \
-                    list(zip(*df.apply(lambda x : scipy.stats.ttest_ind(x[sample1],
-                                                                        x[sample2],
-                                                                        equal_var=equal_var),
-                    axis=1)))
+    df['t_stat'], df['p_value'] = list(zip(*stat))
     if multiple_correction:
         fdr_out = multipletests(df.p_value.fillna(1), alpha=alpha, method=correction_type)
         df['fdr_pass'] = fdr_out[0]
@@ -169,7 +175,9 @@ def preformatted_t_test(df, sample1, sample2, equal_var=True, alpha=0.05, multip
 def t_test(set1, set2, equal_var=True, alpha=0.05, multiple_correction=True, correction_type=None,
            area_col='iBAQ_dstrAdj', tofilter=None):
     """Input is two lists of E2G experiments to be compared
-    Returns a DataFrame with statistical information for each geneid"""
+    Returns a DataFrame with statistical information for each geneid
+    :param area_col: The name of the column to use as the testing value (default iBAQ_dstrAdj)
+    """
     if correction_type is None:
         correction_type = 'fdr_tsbky'
 
@@ -179,8 +187,7 @@ def t_test(set1, set2, equal_var=True, alpha=0.05, multiple_correction=True, cor
     df = df.reindex_axis( [repr(x) for x in set1+set2], axis=1)
     sample1 = df.columns[0:set1_len]
     sample2 = df.columns[set1_len::]
-    df = preformatted_t_test(df, sample1, sample2, equal_var, alpha, multiple_correction, correction_type,
-                             area_col)
+    df = preformatted_t_test(df, sample1, sample2, equal_var, alpha, multiple_correction, correction_type)
     return df
 
 def volcanoplot(data, ax=None):
