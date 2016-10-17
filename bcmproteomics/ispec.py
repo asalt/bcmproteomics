@@ -303,9 +303,9 @@ class E2G(Experiment):
                   inplace=True)
 
         df.index.rename('GeneID',inplace=True)
-        df.GeneID = df.GeneID.astype('object')
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
-        geneidlist = [str(int(x)) for x in df.index.tolist() if not np.isnan(x)]
+        geneidlist = [str(x) for x in df.index.tolist() if not np.isnan(x)]
+
         genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
                    "gene_GeneSymbol, gene_GeneDescription, "\
                    "gene_FunCats " \
