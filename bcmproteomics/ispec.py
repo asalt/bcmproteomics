@@ -6,6 +6,7 @@ from __future__ import print_function
 import json
 import os
 from getpass import getpass
+from warnings import warn
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,14 @@ url  = None
 database = None
 params = {'user': user, 'pw': pw, 'url': url, 'database': database}
 
+def reset_index_if_not_unique(df):
+    if not df.index.is_unique:
+        df[df.index.name] = df.index
+        df = df.reset_index(drop=True)
+        warn('''Returned dataframe not indexed on GeneID due to duplicate records.
+        If this is a labeled experiment you can safely ignore this warning.
+        Note that joining multiple experiments will NOT work correctly.''')
+    return df
 
 def _find_file(target, path):
     """Try to find a file in a given path
@@ -384,7 +393,7 @@ class PSMs(Experiment):
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
         else:
-            self._df = pd.read_table(psmsfile, index_col='GeneID')
+            self._df = pd.read_table(psmsfile)
         return self
 
 class E2G(Experiment):
@@ -478,17 +487,18 @@ class E2G(Experiment):
         """Construct a pandas dataframe from data in the iSPEC.
         """
         df = pd.read_sql(sql, conn, index_col='e2g_GeneID')
+        df.index.rename('GeneID',inplace=True)
         df.index = df.index.astype('object')
+        df = reset_index_if_not_unique(df)
         df.rename(columns={k: k.split('e2g_')[1] for k in
                [e2gcol for e2gcol in df.columns if e2gcol.startswith('e2g_')]},
              inplace=True)
         df.rename(columns={'n_iBAQ_dstrAdj': 'iBAQ_dstrAdj',},
                   inplace=True)
 
-        df.index.rename('GeneID',inplace=True)
+        df.GeneID = df.GeneID.astype('object')
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
         geneidlist = [str(x) for x in df.index.tolist() if not np.isnan(x)]
-
         genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
                    "gene_GeneSymbol, gene_GeneDescription, "\
                    "gene_FunCats " \
