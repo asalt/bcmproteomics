@@ -192,7 +192,7 @@ class Experiment:
         self.sample = info.get('sample')
         self.treatment = info.get('treatment')
         self.exptype = info.get('exptype')
-        self.description = info.get('descriptioin', [])
+        self.description = info.get('description', [])
         self.genotype = info.get('genotype')
         self.added_by = info.get('added_by')
         self.digest_type = info.get('digest_type')
