@@ -487,7 +487,8 @@ class E2G(Experiment):
         """Construct a pandas dataframe from data in the iSPEC.
         """
         df = pd.read_sql(sql, conn, index_col='e2g_GeneID')
-        df.index.rename('GeneID',inplace=True)
+        df.index.rename('GeneID', inplace=True)
+        df['GeneID'] = df.index.astype('object')
         df.index = df.index.astype('object')
         df = reset_index_if_not_unique(df)
         df.rename(columns={k: k.split('e2g_')[1] for k in
@@ -496,7 +497,6 @@ class E2G(Experiment):
         df.rename(columns={'n_iBAQ_dstrAdj': 'iBAQ_dstrAdj',},
                   inplace=True)
 
-        df.GeneID = df.GeneID.astype('object')
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
         geneidlist = [str(x) for x in df.index.tolist() if not np.isnan(x)]
         genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
