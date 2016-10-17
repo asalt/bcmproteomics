@@ -28,7 +28,7 @@ params = {'user': user, 'pw': pw, 'url': url, 'database': database}
 
 def reset_index_if_not_unique(df):
     if not df.index.is_unique:
-        df[df.index.name] = df.index
+        # df[df.index.name] = df.index
         df = df.reset_index(drop=True)
         warn('''Returned dataframe not indexed on GeneID due to duplicate records.
         If this is a labeled experiment you can safely ignore this warning.
@@ -490,7 +490,6 @@ class E2G(Experiment):
         df.index.rename('GeneID', inplace=True)
         df['GeneID'] = df.index.astype('object')
         df.index = df.index.astype('object')
-        df = reset_index_if_not_unique(df)
         df.rename(columns={k: k.split('e2g_')[1] for k in
                [e2gcol for e2gcol in df.columns if e2gcol.startswith('e2g_')]},
              inplace=True)
@@ -498,7 +497,7 @@ class E2G(Experiment):
                   inplace=True)
 
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
-        geneidlist = [str(x) for x in df.index.tolist() if not np.isnan(x)]
+        geneidlist = [str(x) for x in df.GeneID.tolist() if not np.isnan(x)]
         genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
                    "gene_GeneSymbol, gene_GeneDescription, "\
                    "gene_FunCats " \
@@ -517,7 +516,7 @@ class E2G(Experiment):
             #df = pd.merge(df, genedf, on='GeneID')
             df = df.join(genedf)
             df['FunCats'].fillna('', inplace=True)
-        df['GeneID'] = df.index  # put index in its own column as well for easy access
+        df = reset_index_if_not_unique(df)
         return df
 
     def save(self, data_dir=None):
