@@ -3,13 +3,21 @@ BCM Proteomics iSPEC.
 
 """
 from __future__ import print_function
+import json
+import os
+from getpass import getpass
+
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
 import pyodbc
-from getpass import getpass
 from bcmproteomics.e2gitems import e2gcolumns, psm_columns, tmt_columns
-from bcmproteomics.classify import score_experiments
+try:
+    from bcmproteomics.classify import score_experiments
+    _classify = True
+except ImportError:
+    _classify = False
+
 
 user = None
 pw   = None
@@ -17,15 +25,55 @@ url  = None
 database = None
 params = {'user': user, 'pw': pw, 'url': url, 'database': database}
 
-class Experiment:
-    """Base object for inheritance for other objects.
-    Grabs metadata"""
 
-    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
-        """Different metadata as well as data"""
+def _find_file(target, path):
+    """Try to find a file in a given path
+
+    :param target: target file name
+    :param path: path name
+    :returns: path to file . ext
+    :rtype: str
+
+    """
+    result = [x for x in os.listdir(path) if x == target]
+    if result:
+        return os.path.abspath(os.path.join(path, result[0]))
+    return None
+
+class Experiment:
+    """Container for accessing metadata for a given experiment.
+
+    :param recno: int/str for record number
+    :param runno: int/str, default 1
+    :param searchno: int/str, default 1
+    :param auto_populate: Whether or not to try to auto populate the data, default True
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+    :returns: Experiment instance
+    :rtype: ispec.Experiment
+
+    .. note::
+        If data_dir is specified, data will *automatically* be saved in the given directory
+    """
+
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None):
+        """Loads metadata for a given experiment.
+
+        :param recno: int/str for record number
+        :param runno: int/str, default 1
+        :param searchno: int/str, default 1
+        :param auto_populate: Whether or not to try to auto populate the data, default True
+        :param data_dir: (optional) data directory for saving/loading data
+                         If specified, will first look in data_dir for data before making network calls
+        :returns: Experiment instance
+        :rtype: ispec.Experiment
+        .. note::
+            If data_dir is specified, data will **automatically** be saved in the given directory
+        """
+
         self.recno = recno
-        self.runno = runno
-        self.searchno = searchno
+        self.runno = runno or 1
+        self.searchno = searchno or 1
         #self.techrepno =
         self.sample = ''
         self.treatment = ''
@@ -35,10 +83,15 @@ class Experiment:
         self.identifiers = ''
         self.taxon_ratios = dict()
         self.labeltype = None
+        if data_dir is not None:
+            data_dir = os.path.abspath(data_dir)
+        self.data_dir = data_dir
+        self._df = pd.DataFrame() # else set as empty dataframe
         if recno is not None and auto_populate:
-            self.get_metadata(recno, runno, searchno) # self._df gets set through here
-        else:
-            self._df = pd.DataFrame() # else set as empty dataframe
+            if self.data_dir is not None:
+                self.load_local_metadata(self.data_dir)
+            else:
+                self.get_metadata(recno, runno, searchno) # self._df gets set through here
         self._joined = False
         self.ibaq_normalize = None
 
@@ -49,8 +102,9 @@ class Experiment:
 
     @property
     def df(self):
-        """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
+        "Placeholder"
         return self._df
+
     @property
     def _database(self):
         return params.get('database')
@@ -60,9 +114,6 @@ class Experiment:
         if self._joined:
             raise NotImplementedError('Cannot reload data for a joined experiment.')
         self.get_exprun(self.recno, self.runno, self.searchno)
-
-    def get_ex():
-        pass
 
     def get_metadata(self, recno, runno, searchno):
         if not recno:
@@ -91,7 +142,6 @@ class Experiment:
         self.added_by = ''.join(item for item in info.get('exp_AddedBy', '') if item)
         self.digest_type = ''.join(item for item in info.get('exp_Digest_Type', '') if item)
         self.digest_enzyme = ''.join(item for item in info.get('exp_Digest_Enzyme', '') if item)
-        #print( ''.join(int(item) for item in info.get('exp_Extract_No', 0) if str(item).isdigit()))
         self.extract_no = ''.join(str(item) for item in info.get('exp_Extract_No', 0) if item)
         self.identifiers = ''.join(item for item in info.get('exp_IDENTIFIER', '') if item).splitlines()
         self.recno = recno
@@ -126,6 +176,24 @@ class Experiment:
         return self
 
 
+    def populate_metadata(self, info: dict):
+        """Populate metadata from a dictionary originating from json dump
+        of original data"""
+
+        self.sample = info.get('sample')
+        self.treatment = info.get('treatment')
+        self.exptype = info.get('exptype')
+        self.description = info.get('descriptioin', [])
+        self.genotype = info.get('genotype')
+        self.added_by = info.get('added_by')
+        self.digest_type = info.get('digest_type')
+        self.digest_enzyme = info.get('digest_enzyme')
+        self.extract_no = info.get('extract_no', 0)
+        self.identifiers = info.get('identifiers')
+        self.extract_fractions = info.get('extract_fractions')
+        self.extract_protocol = info.get('extract_protocol')
+        self.taxon_ratios = info.get('taxon_ratios')
+        return self
 
     def _add_taxon_ratios(self, hu, mou, gg):
         for taxa, id in ((hu, '9606'), (mou, '10090'), (gg, '9031')):
@@ -148,18 +216,100 @@ class Experiment:
     def _database(self):
         return params.get('database')
 
-    def to_json(self):
-        json_data = json.dumps(self.__dict__)
+    @property
+    def json_metadata(self):
+        """Metadata to json
+
+        :returns: json
+        :rtype: str
+
+        """
+        json_data = json.dumps({attr: self.__getattribute__(attr)
+                                for attr in self.__dict__.keys()
+                                if not attr.startswith('_')})
+        return json_data
+
+    def save(self, data_dir=None):
+        """Save data to given directory. Called automatically if data_dir is provided
+        and data not present locally
+
+        :param data_dir: (Optional) Directory to save data.
+                         Uses self.data_dir if not specified here.
+        :returns: None
+        :rtype: NoneType
+
+        """
+        if data_dir is None:
+            data_dir = self.data_dir
+        with open(os.path.join(data_dir, '{!r}.json'.format(self)), 'w') as metaf:
+            json.dump(self.json_metadata, metaf)
+        return
+
+    def load_local_metadata(self, data_dir=None):
+        """Try to load the data from disk rather than over network.
+        This method is usually invoked automatically and does not usually
+        need to be manually invoked.
+
+        :param data_dir: (Optional) Directory to save data.
+                         Uses self.data_dir if not specified here.
+        :returns: self
+        :rtype: ispec.Experiment
+
+        """
+        if self.runno is None:
+            raise ValueError('recno must be specified')
+        if data_dir is None:
+            data_dir = self.data_dir
+        target = _find_file(target='{!r}.json'.format(self), path=data_dir)
+        if target is None:
+            self.get_metadata(self.recno, self.runno, self.searchno)
+            self.save(data_dir)
+            return self
+        metadata = json.loads(json.load(open(target, 'r'))) # not sure why this is necessary
+        self.populate_metadata(metadata)
+        return self
+
+
 
 class PSMs(Experiment):
-    """An object for working with iSPEC PSMs data at BCM
-    presplit : bool, default False. If True, returns only the original record of PSMs before
-        duplication based on the number of potential geneids each PSM could map to."""
-    def __init__(self, recno=None, runno=None, searchno=None, presplit=False, auto_populate=True):
-        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+    """Container for accessing psms data for a given experiment
+
+    :param recno: int/str for record number
+    :param runno: int/str, default 1
+    :param searchno: int/str, default 1
+    :param auto_populate: Whether or not to try to auto populate the data, default True
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+    :returns: PSMs instance
+    :rtype: ispec.PSMs
+
+    .. seealso:: ispec.Experiment
+    .. todo:: add presplit support
+
+    """
+    def __init__(self, recno=None, runno=None, searchno=None, presplit=False, auto_populate=True, data_dir=None):
+        """Container for accessing psms data for a given experiment
+
+        :param recno: int/str for record number
+        :param runno: int/str, default 1
+        :param searchno: int/str, default 1
+        :param auto_populate: Whether or not to try to auto populate the data, default True
+        :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+        :returns: PSMs instance
+        :rtype: ispec.PSMs
+
+        .. seealso:: ispec.Experiment
+        .. todo:: add presplit support
+
+        """
+        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate, data_dir=data_dir)
         self.presplit = presplit
         if recno is not None and auto_populate:
-            self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
+            if self.data_dir is not None:
+                self.load_local(self.data_dir)
+            else:
+                self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
@@ -203,49 +353,77 @@ class PSMs(Experiment):
             raise NotImplementedError('Cannot reload data for a joined experiment.')
         self.get_exprun(self.recno, self.runno, self.searchno)
 
+    def save(self, data_dir=None):
+        """Save data to given directory. Called automatically if data_dir is provided
+        and data not present locally
+
+        :param data_dir: (Optional) Directory to save data.
+                         Uses self.data_dir if not specified here.
+        :returns: None
+        :rtype: NoneType
+
+        """
+        if data_dir is None:
+            data_dir = self.data_dir
+        super().save(data_dir=data_dir)
+        with open(os.path.join(data_dir, '{!r}_psms.tab'.format(self)), 'w') as data:
+            self.df.to_csv(data, sep='\t')
+
+    def load_local(self, data_dir=None):
+        """Try to load the data from disk rather than over network.
+
+        :param data_dir: (Optional) Directory to save data.
+                         Uses self.data_dir if not specified here.
+        :returns: self
+        :rtype: ispec.PSMs
+
+        """
+        self.load_local_metadata(data_dir=data_dir)
+        psmsfile = _find_file(target='{!r}_psms.tab'.format(self), path=data_dir)
+        if psmsfile is None:
+            self.get_exprun(self.recno, self.runno, self.searchno)
+            self.save(data_dir)
+        else:
+            self._df = pd.read_table(psmsfile, index_col='GeneID')
+        return self
 
 class E2G(Experiment):
-    """ An object for working with iSPEC Proteomics data at BCM
+    """Container for accessing gene product data for a given experiment
 
-    Attributes
-    ----------
-    df : pandas DataFrame of the experimental data
+    :param recno: int/str for record number
+    :param runno: int/str, default 1
+    :param searchno: int/str, default 1
+    :param auto_populate: Whether or not to try to auto populate the data, default True
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+    :returns: E2G instance
+    :rtype: ispec.E2G
 
-    recno : experimental record number
+    .. seealso:: ispec.Experiment
 
-    runno : experimental run number
+        """
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None):
+        """Container for accessing gene product data for a given experiment
 
-    sample : experimental sample cell/tissue
+        :param recno: int/str for record number
+        :param runno: int/str, default 1
+        :param searchno: int/str, default 1
+        :param auto_populate: Whether or not to try to auto populate the data, default True
+        :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+        :returns: E2G instance
+        :rtype: ispec.E2G
 
-    treatment : any applied treatment
+        .. seealso:: ispec.Experiment
 
-    exptype : type of experiment (Profile, Affinity, ...)
-
-    genotype : genotype for the experiment
-    ----------
-
-    Initialize a new experiment object and grab your data:
-    >>> import BCM_proteomics as BCM
-    >>> BCM.user = 'username'
-    >>> BCM.pw = 'password'
-    >>> exp = BCM.E2G(recno=12345, runno=1) # note runno defaults to 1
-
-    ----------
-
-    Multiple E2G instances can be joined using join_exps:
-    >>> from bcmproteomcs import ispec
-    >>> exp1 = ispec.E2G(12345,1)
-    >>> exp2 = ispec.E2G(12345,2)
-    >>> exp1_2 = ispec.join_exps(exp1, exp2) (or exp1_2 = exp1 + exp2)
-
-    note that many methods on E2G are (currently) unavailable with a joined E2G instance
-    ----------
-    """
-    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True):
-        """Different metadata as well as data"""
-        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate)
+        """
+        # """Different metadata as well as data"""
+        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate, data_dir=data_dir)
         if recno is not None and auto_populate:
-            self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
+            if data_dir is not None:
+                self.load_local(self.data_dir)
+            else:
+                self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
@@ -259,7 +437,12 @@ class E2G(Experiment):
 
     @property
     def df(self):
-        """Acccess (potentially in the future) dictionary of pandas DataFrames for record sections."""
+        """Data for the experiment
+
+        :returns: df
+        :rtype: pandas.DataFrame
+
+        """
         return self._df
 
     def reload(self):
@@ -326,6 +509,45 @@ class E2G(Experiment):
             df['FunCats'].fillna('', inplace=True)
         df['GeneID'] = df.index  # put index in its own column as well for easy access
         return df
+
+    def save(self, data_dir=None):
+        """Save data to given directory. Called automatically if data_dir is provided
+        and data not present locally
+
+        :param data_dir: (Optional) Directory to save data.
+                         Uses self.data_dir if not specified here.
+        :returns: None
+        :rtype: NoneType
+
+        """
+        if data_dir is None:
+            data_dir = self.data_dir
+        super().save(data_dir=data_dir)
+        if len(self.df) == 0: # don't save if no data!
+            return
+        with open(os.path.join(data_dir, '{!r}_e2g.tab'.format(self)), 'w') as data:
+            self.df.to_csv(data, sep='\t')
+
+    def load_local(self, data_dir=None):
+        """Try to load the data from disk rather than over network.
+        This method is usually invoked automatically and does not usually
+        need to be manually invoked.
+
+        :param data_dir: (Optional) Directory to save data.
+                         Uses self.data_dir if not specified here.
+        :returns: self
+        :rtype: ispec.E2G
+
+        """
+        self.load_local_metadata(data_dir=data_dir)
+        e2gfile = _find_file(target='{!r}_e2g.tab'.format(self), path=data_dir)
+        if e2gfile is None:
+            self.get_exprun(self.recno, self.runno, self.searchno)
+            self.save(data_dir)
+        else:
+            self._df = pd.read_table(e2gfile, index_col='GeneID')
+            self.df['FunCats'] = self.df['FunCats'].fillna('')
+        return self
 
     def strict(self, df=None, set1=False):
         """Returns a strict selection of gene products from the dataframe
@@ -590,6 +812,25 @@ def get_geneids(taxonid):
     genes = [int(g) for gid in gids for g in gid]
     return genes
 
+def get_all_funcats(taxonid, data_dir=None):
+    """Get all the gene information for a given taxonid.
+
+    Optional data_dir argument will first look for output file
+    in given directory.
+    If not found, will make network call and save results there."""
+    fname = 'geneinfo_{}.tab'.format(taxonid)
+
+    if data_dir:
+        f = _find_file(fname, data_dir)
+        if f is not None:
+            return pd.read_table(f)
+
+    gids = get_geneids(taxonid)
+    funcats = get_funcats(gids)
+    if data_dir:
+        funcats.to_csv(os.path.join(data_dir, fname), sep='\t')
+    return funcats
+
 def join_exps(exp1, exp2, normalize=None, seed=None):
     """Nice outer join two experiments based on their geneids. Useful for comparing between experiments.
     Keeps gene information as well.
@@ -649,6 +890,8 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
                              for x in joinexp.df.index] # for convienence
     joinexp._joined = True
     joinexp.ibaq_normalize = normalize
+    if _classify == False:
+        return joinexp
     try:
         score_experiments(joinexp, seed=seed)
     except Exception as e:

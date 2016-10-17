@@ -140,27 +140,27 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
     #up_df.to_csv(outpath+u_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
     #down_df.to_csv(outpath+d_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
 
-def _expconstructor(ctrls=None, samples=None, by_pairs=False):
+def _expconstructor(ctrls=None, samples=None, by_pairs=False, data_dir=None):
     """ Magically makes all the data numbers you wish to find
     """
     ctrls = [(x,1,1) if not isinstance(x,tuple) else x for x in ctrls]
     samples = [(x,1,1) if not isinstance(x,tuple) else x for x in samples]
     ctrl_e2gs = []
-    conn = ispec.filedb_connect()
-    if isinstance(conn, str):
-        print('Unable to connect to iSPEC')
-        print(conn)
-        return None
+    # conn = ispec.filedb_connect()
+    # if isinstance(conn, str):
+    #     print('Unable to connect to iSPEC')
+    #     print(conn)
+    #     return None
     print('Loading data from iSPEC, please wait...')
     for ctrl in ctrls:
-        exp = ispec.E2G(*ctrl)
+        exp = ispec.E2G(*ctrl, data_dir=data_dir)
         if len(exp.df) != 0: # only pick exps that have data!
             ctrl_e2gs.append(exp)
         elif len(exp.df) == 0:
             print('No data for ', exp, '\nSkipping')
     sample_e2gs = []
     for sample in samples:
-        exp = ispec.E2G(*sample)
+        exp = ispec.E2G(*sample, data_dir=data_dir)
         if len(exp.df) != 0: # only pick exps that have data!
             sample_e2gs.append(exp)
         elif len(exp.df) == 0:
@@ -172,53 +172,51 @@ def _expconstructor(ctrls=None, samples=None, by_pairs=False):
     return pairs
 
 def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=None,
-                    taxon_normalize=None, seed=None, by_pairs=False):
-    """Function to run combinations of pairwise comparisons of experimental results located
+                    taxon_normalize=None, seed=None, by_pairs=False, data_dir=None):
+    """
+
+    Function to run combinations of pairwise comparisons of experimental results located
     in an iSPEC database. Returns two pandas dataframes, the first containing all gene products
     found be considered up in the second group at least once and the second containing all
     gene products found to be down at least once.
 
-    Inputs
-    ----------
-    ctrls, samples : lists of experiment record numbers that belong to each group.
-        Note that if the run number and search numbers are to be specified, then the
-        element should be a tuple with the run number and search number elements 2 and 3
+    :param ctrls: list of experiment records that belong to control group
+                  format is [ (rec1, run1, search1), (rec2, run2, search2) ]
+    :param samples: list of experiment records that belong to sample group
+                    same format as ctrls
+    :param description: (optional) description of the comparison. Defaults to today's date.
+    :param ibaq_normalize: 'mean', 'median' or None (Optional)
+                           method of normalization of iBAQ_dstrAdj
+                           Has the side effect of adding ibaq_norm column to each input DataFrame.
+    :param taxon_normalize: (optional) a dictionary which contains dictionaries of different taxon ratios
+                            for a given experiment
+    :param seed: (optional) set seed for random forest classifier (default None)
+    :param by_pairs: (optional) only do comparisons by pairs based on the ordering of the experiments
+    :param data_dir: (optional) data directory for saving/loading data
+                     If specified, will first look in data_dir for data before making network calls
+    :returns: up_df, down_df
+    :rtype: pd.DataFrame, pd.DataFrame
 
-        >> ctrls = [12345, (12346, 2, 1), (12347)]
 
-        All of these formats are acceptable. The second element indicates that
-        the second run number should be used. The other elements will default to 1
-        run and search numbers.
+    :Example:
 
-    description : (optional) description of the comparison. Defaults to today's date.
+    >>> ctrls = [(12345,1,1), (12345,2,1)]
+    >>> treatments = [12346, 12347]
+    >>> up, down = multicomparison(ctrls, treatments, description='My Comparison 1')
+    .. note::
+        The tuple format is only necessary when specifying run and search numbers.
+        The record number can be the only entry and the run and search numbers will default to 1.
 
-    ibaq_normalize  : 'mean', 'median' or None (Optional)
-                      method of normalization of iBAQ_dstrAdj
-                      Has the side effect of adding ibaq_norm column to each input DataFrame.
+    :Example:
 
-    taxon_normalize : a dictionary which contains dictionaries of different taxon ratios
-        for a given experiment
+    >>> taxon_normalize : {12345: {9606: 0.4, 10090: 0.6},
+                          {12346: ... }
+    >>> up, down = multicomparison(ctrls, treatments, description='My Comparison 2',
+                                   taxon_normalize=taxon_normalize)
 
-        >> taxon_normalize : {12345: {9606: 0.4, 10090: 0.6}, }
-
-        Here experiment number 12345 has a human ratio of 0.4 and a
-        mouse ratio of 0.6.
-        Note that if taxon_normalize is used, an entry for each
-        experiment record must be included.
-
-    by_pairs : (optional) only do comparisons by pairs based on the ordering of the experiments.
-               ctrls = [12345, 12346] and treatments = [12347, 12348] will only do:
-                     12345 vs 12347, and 12346 and 12348. Order matters
-               Default False
-
-    seed : (optional) sets seed for random forest classifier.
-
-    ----------
-    Example:
-    >> ctrls = [(12345,1,1), (12345,2,1)]
-    >> treatments = [12346, 12347]
-    >> up, down = multicomparison(ctrls, treatments, description='My Comparison 1')
-
+    .. note::
+        Here experiment number 12345 has a human ratio of 0.4 and a mouse ratio of 0.6.
+        If taxon_normalize is used, an entry for each experiment record must be included.
     """
 
     if not ctrls and samples:
