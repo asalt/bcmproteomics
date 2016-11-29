@@ -28,7 +28,8 @@ params = {'user': user, 'pw': pw, 'url': url, 'database': database}
 
 def reset_index_if_not_unique(df):
     if not df.index.is_unique:
-        # df[df.index.name] = df.index
+        if not df.index.name in df.columns: # don't throw away the index if we don't have it
+            df[df.index.name] = df.index
         df = df.reset_index(drop=True)
         warn('''Returned dataframe not indexed on GeneID due to duplicate records.
         If this is a labeled experiment you can safely ignore this warning.
@@ -188,7 +189,6 @@ class Experiment:
     def populate_metadata(self, info: dict):
         """Populate metadata from a dictionary originating from json dump
         of original data"""
-
         self.sample = info.get('sample')
         self.treatment = info.get('treatment')
         self.exptype = info.get('exptype')
@@ -535,7 +535,7 @@ class E2G(Experiment):
         if len(self.df) == 0: # don't save if no data!
             return
         with open(os.path.join(data_dir, '{!r}_e2g.tab'.format(self)), 'w') as data:
-            self.df.to_csv(data, sep='\t')
+            self.df.to_csv(data, sep='\t', index=True if 'GeneID' == self.df.index.name else False)
 
     def load_local(self, data_dir=None):
         """Try to load the data from disk rather than over network.
@@ -555,7 +555,8 @@ class E2G(Experiment):
             self.save(data_dir)
         else:
             self._df = pd.read_table(e2gfile, index_col='GeneID')
-            self.df['FunCats'] = self.df['FunCats'].fillna('')
+            self._df = reset_index_if_not_unique(self.df)
+            self._df['FunCats'] = self.df['FunCats'].fillna('')
         return self
 
     def strict(self, df=None, set1=False):
@@ -832,7 +833,7 @@ def get_all_funcats(taxonid, data_dir=None):
     if data_dir:
         f = _find_file(fname, data_dir)
         if f is not None:
-            return pd.read_table(f)
+            return pd.read_table(f, index_col='GeneID')
 
     gids = get_geneids(taxonid)
     funcats = get_funcats(gids)
