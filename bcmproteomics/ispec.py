@@ -11,7 +11,10 @@ from warnings import warn
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
-import pyodbc
+try:
+    import pyodbc
+except ImportError:
+    pass
 from bcmproteomics.e2gitems import e2gcolumns, psm_columns, tmt_columns
 try:
     from bcmproteomics.classify import score_experiments
@@ -691,6 +694,25 @@ class E2G(Experiment):
             print('-'*15,'\n')
 
 
+def _display(iterable):
+    """Display an iterable of things"""
+    mapping = dict()
+    for ix, element in enumerate(iterable):
+        mapping[ix+1] = element
+        print("({}) -- {}".format(ix+1,
+                                  element))
+    return mapping
+def _make_selection(iterable):
+    selected = None
+    value = None
+    mapping = _display(iterable)
+    while not selected or not value:
+        selected = click.prompt('Make a selection from above', type=int)
+        try:
+            value = mapping[selected]
+        except (KeyError, ValueError):
+            print("Invalid Selection\n")
+    return value
 
 def _getlogin():
     """Checks if the username and password have been established for the current python session.
@@ -706,31 +728,31 @@ def _getlogin():
                  }
     if params.get('user') is None:
         print('Username is not set')
-        user = input('Enter your iSPEC username : ')
+        user = click.prompt('Enter your iSPEC username')
         params['user'] = user
     if params.get('pw') is None:
         print('Password is not set')
-        pw = getpass('Enter your password : ')
+        pw = click.prompt('Enter your password', hide_input=True)
         params['pw'] = pw
     if params.get('url') is None:
         print('iSPEC is not set, the options are:')
-        print(*[server for server in servers], sep='\n')
-        server = input('Select an iSPEC : ').strip()
+        server = _make_selection(servers)
+        # print(*[server for server in servers], sep='\n')
+        # server = input('Select an iSPEC : ').strip()
         params['url'] = servers.get(server, '10.16.2.74')
-    elif 'url' in params:
-        params['url'] = servers.get(url, '10.16.2.74')
+    # elif 'url' in params:
+    #     params['url'] = servers.get(params['url'], '10.16.2.74')
 
     if params.get('database') is None:
         server_url = params['url']
         if len(databases.get(server_url, [])) == 1:
-            params['database'] = databases[server][0]
+            params['database'] = databases[server_url][0]
         else:
             print('iSPEC database is not set, the options are:')
-            print(*[database for database in databases[server_url]], sep='\t')
-            db = input('Select an iSPEC database: ').strip()
-            params['database'] = db
-            #databases.get(db, 'iSPEC_BCM')
-
+            db = _make_selection(databases[server_url])
+            # print(*[database for database in databases[server_url]], sep='\t')
+            # db = input('Select an iSPEC database: ').strip()
+            params['database'] = databases.get(db, 'iSPEC_BCM')
     return params
 
 def filedb_connect():
