@@ -97,7 +97,7 @@ class Experiment:
         self.added_by = ''
         self.identifiers = ''
         self.taxon_ratios = dict()
-        self.labeltype = None
+        self.labeltype = ''
         if data_dir is not None:
             data_dir = os.path.abspath(data_dir)
         self.data_dir = data_dir
