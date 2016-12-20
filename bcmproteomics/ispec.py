@@ -380,8 +380,10 @@ class PSMs(Experiment):
         if data_dir is None:
             data_dir = self.data_dir
         super().save(data_dir=data_dir)
+        if len(self.df) == 0: # don't save if no data!
+            return
         with open(os.path.join(data_dir, '{!r}_psms.tab'.format(self)), 'w') as data:
-            self.df.to_csv(data, sep='\t')
+            self.df.to_csv(data, sep='\t', index=False)
 
     def load_local(self, data_dir=None):
         """Try to load the data from disk rather than over network.
@@ -722,9 +724,9 @@ def _getlogin():
 
     Defaults to bcmproteomics.
     """
-    servers = {'bcmproteomics': '10.16.2.74',
-               'jun lab': '10.13.14.171',
-               }
+    servers = OrderedDict({'bcmproteomics': '10.16.2.74',
+                           'jun lab': '10.13.14.171',
+    })
     databases = {'10.16.2.74': ['iSPEC_BCM', 'iSPEC_BCM_psms', 'iSPEC_BCM_IDG'],
                  '10.13.14.171': ['iSPEC'],
                  }
