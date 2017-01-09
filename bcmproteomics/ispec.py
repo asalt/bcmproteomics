@@ -115,6 +115,15 @@ class Experiment:
         return '{}_{}_{}'.format(self.recno, self.runno, self.searchno)
         # return 'Record number {}, run number {}'.format(self.recno, self.runno)
 
+    def __getattr__(self, name):
+        if name not in self.__dict__:
+            try:
+                return getattr(self.df, name)
+            except AttributeError as e:
+                e.args = ("'{}' object has no attribute '{}'".format(self.__class__, name), e.args[0])
+                raise(e)
+
+
     @property
     def df(self):
         "Placeholder"
@@ -359,6 +368,7 @@ class PSMs(Experiment):
         df.rename(columns={k: k.split('psm_')[1] for k in
                [col for col in df.columns if col.startswith('psm_')]},
              inplace=True)
+
         return df
 
     def reload(self):
