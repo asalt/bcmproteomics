@@ -27,8 +27,8 @@ except ImportError:
 
 user = None
 pw   = None
-url  = None
-database = None
+url  = '10.16.2.74'
+database = 'iSPEC_BCM'
 params = {'user': user, 'pw': pw, 'url': url, 'database': database}
 
 def reset_index_if_not_unique(df):
