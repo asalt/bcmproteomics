@@ -450,6 +450,7 @@ class E2G(Experiment):
                 self.load_local(self.data_dir)
             else:
                 self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
+            self.assign_sra(self.df)
         else:
             self._df = pd.DataFrame() # else set as empty dataframe
         self._joined = False
@@ -498,6 +499,15 @@ class E2G(Experiment):
         conn.close()
         return self
 
+    @staticmethod
+    def assign_sra(df):
+        df['SRA'] = 'A'
+        df['SRA'] = df['SRA'].astype('category', categories=('S', 'R', 'A'))
+        df.loc[ (df['IDSet'] < 3) &
+                (df['IDGroup'] <= 3), 'SRA'] = 'S'
+        df.loc[ (df['IDSet'] < 3) &
+                (df['IDGroup'] <= 5) &
+                (df['SRA']!= "S"), 'SRA'] = 'S'
 
     @staticmethod
     def _construct_df(sql, conn):
