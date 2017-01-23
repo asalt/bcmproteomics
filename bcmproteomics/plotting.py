@@ -2,6 +2,7 @@
 Heavily inspired and borrowed from
 https://github.com/rougier/ten-rules/blob/master/figure-1.py
 """
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pandas as pd
@@ -103,7 +104,7 @@ def plot_summary(df, color=None, description=None):
                 plot_data = plot_data[plot_data.index != 0]
                 plot_data.index = plot_data.index.astype(int)
                 plot_nested_bar(plot_data, outer='IDGroup',
-                                inner='IDGroup_u2g',
+                                inner='IDGroup_u2g', color=color,
                                 set_ylim=False, ax=ax)
                 ax.set_xlabel('IDGroup')
                 continue
@@ -111,7 +112,7 @@ def plot_summary(df, color=None, description=None):
                 plot_data = data.value_counts(sort=False)
             if col != 'SRA':
                 plot_data.index = plot_data.index.astype(int)
-            plot_data.plot(kind='bar', ax=ax, logy=False, alpha=alpha, linewidth=0)
+            plot_data.plot(kind='bar', ax=ax, logy=False, alpha=alpha, linewidth=0, color=color)
             autolabel(ax)
             ax.set_xlabel(col)
             ax.set_ylabel('Count')
@@ -130,7 +131,7 @@ def plot_summary(df, color=None, description=None):
             ax.legend()
         else:
             bins = calc_bins(np.log10(data))
-            data.plot(kind='hist', ax=ax, logy=True, alpha=alpha, linewidth=0, bins=bins)
+            data.plot(kind='hist', ax=ax, logy=True, alpha=alpha, linewidth=0, bins=bins, color=color)
             ax.set_xlabel(col)
         min_, max_ = ax.get_ylim()
         ax.set_ylim(0, max_)
