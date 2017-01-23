@@ -507,7 +507,7 @@ class E2G(Experiment):
                 (df['IDGroup'] <= 3), 'SRA'] = 'S'
         df.loc[ (df['IDSet'] < 3) &
                 (df['IDGroup'] <= 5) &
-                (df['SRA']!= "S"), 'SRA'] = 'S'
+                (df['SRA']!= "S"), 'SRA'] = 'R'
 
     @staticmethod
     def _construct_df(sql, conn):

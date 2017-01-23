@@ -20,18 +20,25 @@ def autolabel(ax):
     rects = ax.patches
     for rect in rects:
         height = rect.get_height()
-        ax.text(rect.get_x() + rect.get_width()/2., 1.05*height,
-                '%d' % int(height),
+        max_ = max(ax.get_ylim())
+        color = 'k'
+        text_height = height * 1.04
+        if text_height > max_:
+            text_height = height * 0.94
+            color='w'
+        ax.text(rect.get_x() + rect.get_width()/2., text_height,
+                '%d' % int(height), color=color,
                 ha='center', va='bottom')
 
-def plot_nested_bar(df, outer, inner, ax=None, **kwargs):
+def plot_nested_bar(df, outer, inner, ax=None, set_ylim=True, **kwargs):
     """`outer` is column name for outer data
     and `inner` is column name for inner data"""
     if ax is None:
         ax = plt.gca()
     W,w = 0.8, 0.55
     ax.set_xlim(0, len(df))
-    ax.set_ylim(0, df.max().max()*1.1)
+    if set_ylim:
+        ax.set_ylim(0, df.max().max()*1.1)
     ax.set_xticks([x+.5 for x in range(len(df))])
     ax.set_xticklabels(df.index)
     tolabel1, tolabel2 = None, None
@@ -53,6 +60,18 @@ def plot_nested_bar(df, outer, inner, ax=None, **kwargs):
         ax.add_patch(p)
     ax.legend()
     return ax
+
+def calc_bins(x):
+    """ Freedman Diaconis Estimator"""
+    n = len(x)
+    if isinstance(x, pd.DataFrame):
+        x = x.values
+    x = x[ x != -np.inf ]
+    q75, q25 = np.nanpercentile(x, [75 ,25])
+    iqr = q75 - q25
+    h = 2 * ( iqr / np.power(n, 1/3))
+    range_ = x.max() - x.min()
+    return int(np.round(np.ceil(range_/h)))
 
 def plot_summary(df, color=None, description=None):
     """Plot a nice summary of E2G data.
@@ -84,7 +103,8 @@ def plot_summary(df, color=None, description=None):
                 plot_data = plot_data[plot_data.index != 0]
                 plot_data.index = plot_data.index.astype(int)
                 plot_nested_bar(plot_data, outer='IDGroup',
-                                inner='IDGroup_u2g', ax=ax)
+                                inner='IDGroup_u2g',
+                                set_ylim=False, ax=ax)
                 ax.set_xlabel('IDGroup')
                 continue
             else:
@@ -95,18 +115,22 @@ def plot_summary(df, color=None, description=None):
             autolabel(ax)
             ax.set_xlabel(col)
             ax.set_ylabel('Count')
+            for tick in ax.get_xticklabels():
+                tick.set_rotation(0)
             continue
 
         if hasattr(data, 'columns') and len(data.columns) == 2:
             outer, inner = data.columns
-            data[outer].plot(kind='hist', ax=ax, logy=True, alpha=.4,
-                                  color=color, linewidth=0, label=outer)
-            data[inner].plot(kind='hist', ax=ax, logy=True, alpha=.8,
-                                  color=color, linewidth=0, label=inner)
+            bins = calc_bins(np.log10(data))
+            data[outer].plot.hist(ax=ax, logy=True, alpha=.4,
+                             bins=bins, color=color, linewidth=0, label=outer)
+            data[inner].plot.hist(ax=ax, logy=True, alpha=.8,
+                             bins=bins, color=color, linewidth=0, label=inner)
             ax.set_xlabel(outer)
             ax.legend()
         else:
-            data.plot(kind='hist', ax=ax, logy=True, alpha=alpha, linewidth=0)
+            bins = calc_bins(np.log10(data))
+            data.plot(kind='hist', ax=ax, logy=True, alpha=alpha, linewidth=0, bins=bins)
             ax.set_xlabel(col)
         min_, max_ = ax.get_ylim()
         ax.set_ylim(0, max_)
