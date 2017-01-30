@@ -11,6 +11,8 @@ e2gcolumns = ['e2g_'+ c for c in ['GeneID', 'IDSet', 'IDGroup', 'TaxonID',
                                   'n_iBAQ_dstrAdj',
 ]]
 
+e2gcolumns.append('e2g_nGPArea_Sum_razor')
+
 psm_columns = ['psm_AUC_UseFLAG', 'ActivationType', 'psm_AddedBy', 'Charge', 'psm_CreationTS',
                'DeltaCn', 'DeltaMassDa', 'DeltaMassPPM', 'DeltaScore', 'psm_EXPRecNo',
                'psm_EXPRunNo', 'psm_EXPSearchNo', 'FirstScan', 'psm_GeneCount',
@@ -26,6 +28,8 @@ psm_columns = ['psm_AUC_UseFLAG', 'ActivationType', 'psm_AddedBy', 'Charge', 'ps
                'psm_SequenceModiCount', 'SpectrumFile', 'psm_TaxonCount', 'psm_TaxonID',
                'psm_TaxonIDList', 'mzDa', 'psm_oriFLAG', 'q_value'
 ]
+
+psm_columns.append('psm_RazorArea')
 
 tmt_columns = ['TMT_126', 'TMT_127_C', 'TMT_127_N', 'TMT_128_C', 'TMT_128_N', 'TMT_129_C',
                'TMT_129_N', 'TMT_130_C', 'TMT_130_N', 'TMT_131',
