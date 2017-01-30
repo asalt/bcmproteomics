@@ -13,6 +13,11 @@ import pandas as pd
 from collections import OrderedDict
 import click
 
+pd.set_option(
+    "display.width", None,
+    "display.max_columns", 500,
+)
+
 try:
     import pyodbc
 except ImportError:
@@ -116,12 +121,11 @@ class Experiment:
         # return 'Record number {}, run number {}'.format(self.recno, self.runno)
 
     def __getattr__(self, name):
-        if name not in self.__dict__:
-            try:
-                return getattr(self.df, name)
-            except AttributeError as e:
-                e.args = ("'{}' object has no attribute '{}'".format(self.__class__, name), e.args[0])
-                raise(e)
+        if name not in self.__dict__ and hasattr(pd.DataFrame, name):
+            return getattr(self.df, name)
+        else:
+            raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__, name))
+
 
 
     @property
@@ -525,7 +529,7 @@ class E2G(Experiment):
 
         #df.rename(columns={'e2g_GeneID':'GeneID'}, inplace=True)
         geneidlist = [str(x) for x in df.GeneID.tolist() if not np.isnan(x)]
-        genesql  = "Select gene_GeneID, gene_u2gPeptiBAQAveCount, "\
+        genesql  = "Select gene_GeneID, "\
                    "gene_GeneSymbol, gene_GeneDescription, "\
                    "gene_FunCats " \
                    "from iSPEC_BCM.iSPEC_Genes "\
@@ -536,7 +540,7 @@ class E2G(Experiment):
             genedf.rename(columns=generename, inplace=True)
             genedf.index.rename('GeneID', inplace=True)
             df.index = df.index.astype('object')
-            genedf.rename(columns={'u2gPeptIBAQAveCount':'GeneCapacity'}, inplace=True)
+            # genedf.rename(columns={'u2gPeptIBAQAveCount':'GeneCapacity'}, inplace=True)
             #df['e2g_GeneCapacity'] = df['e2g_nGPArea_Sum_dstrAdj']/df['e2g_nGPArea_Sum_dstrAdj']
             #funcat_table = pd.read_table('E:/reference_databases/iSPEC_genes_Aug_2015.tab')
             #df = pd.merge(df, funcat_table, how='left', on='GeneID')
