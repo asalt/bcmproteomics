@@ -104,7 +104,7 @@ def plot_summary(df, color=None, description=None):
                 plot_data = plot_data[plot_data.index != 0]
                 plot_data.index = plot_data.index.astype(int)
                 plot_nested_bar(plot_data, outer='IDGroup',
-                                inner='IDGroup_u2g', color=color,
+                                inner='IDGroup_u2g', color=color
                                 set_ylim=False, ax=ax)
                 ax.set_xlabel('IDGroup')
                 continue

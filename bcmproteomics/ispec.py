@@ -543,7 +543,8 @@ class E2G(Experiment):
             #df = pd.merge(df, genedf, on='GeneID')
             df = df.join(genedf)
             df['FunCats'].fillna('', inplace=True)
-        df = reset_index_if_not_unique(df)
+        if 'GeneID' not in df.columns:
+            df = reset_index_if_not_unique(df)
         return df
 
     def save(self, data_dir=None):
