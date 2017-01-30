@@ -1,6 +1,6 @@
 
 
-e2gcolumns = ['e2g_'+ c for c in ['GeneID', 'IDSet', 'IDGroup',
+e2gcolumns = ['e2g_'+ c for c in ['GeneID', 'IDSet', 'IDGroup', 'TaxonID',
                                   'IDGroup_u2g', 'GPGroup', 'GPGroups_all', 'EXPLabelFLAG',
                                   'PSMs', 'PSMs_u2g', 'PeptidePrint',
                                   'PeptideCount', 'PeptideCount_u2g',
