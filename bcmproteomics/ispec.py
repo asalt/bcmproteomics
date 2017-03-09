@@ -120,11 +120,11 @@ class Experiment:
         return '{}_{}_{}'.format(self.recno, self.runno, self.searchno)
         # return 'Record number {}, run number {}'.format(self.recno, self.runno)
 
-    def __getattr__(self, name):
-        if name not in self.__dict__ and hasattr(pd.DataFrame, name):
-            return getattr(self.df, name)
-        else:
-            raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__, name))
+    # def __getattr__(self, name):
+    #     if name not in self.__dict__ and hasattr(pd.DataFrame, name):
+    #         return getattr(self.df, name)
+    #     else:
+    #         raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__, name))
 
 
 

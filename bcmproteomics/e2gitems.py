@@ -101,8 +101,6 @@ psm_columns = ['psm_' + c for c in (
 )]
 
 
-psm_columns.append('psm_RazorArea')
-
 tmt_columns = ['TMT_126', 'TMT_127_C', 'TMT_127_N', 'TMT_128_C', 'TMT_128_N', 'TMT_129_C',
                'TMT_129_N', 'TMT_130_C', 'TMT_130_N', 'TMT_131',
 ]
