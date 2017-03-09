@@ -359,6 +359,8 @@ class PSMs(Experiment):
                                                         searchno=searchno,
                                                         database=self._database
                )
+        if self.presplit:
+            sql += "\nAND psm_oriFLAG=1"
 
         self._df = self._construct_df(sql, conn)
         conn.close()
