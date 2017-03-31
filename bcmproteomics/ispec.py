@@ -103,6 +103,7 @@ class Experiment:
         self.identifiers = ''
         self.taxon_ratios = dict()
         self.labeltype = ''
+        self.pygrouper_version = ''
         if data_dir is not None:
             data_dir = os.path.abspath(data_dir)
         self.data_dir = data_dir
@@ -181,7 +182,8 @@ class Experiment:
             self.extract_protocol = extract_protocol
 
 
-        additional_info = ("SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031, exprun_LabelType "
+        additional_info = ("SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031, "
+                           "exprun_LabelType, exprun_Grouper_Version "
                      "from {database}.iSPEC_ExperimentRuns where "
                      "exprun_EXPRecNo={recno} "
                      "AND exprun_EXPRunNo={runno} "
@@ -193,9 +195,10 @@ class Experiment:
         cursor.execute(additional_info)
         additional_info_result = cursor.fetchone()
         if additional_info_result:
-            hu, mou, gg, labeltype = additional_info_result
+            hu, mou, gg, labeltype, pygrouper_version = additional_info_result
             self._add_taxon_ratios(hu, mou, gg)
             self._assign_labeltype(labeltype)
+            self.pygrouper_version = pygrouper_version
 
         return self
 
@@ -893,6 +896,25 @@ def get_all_funcats(taxonid, data_dir=None):
     if data_dir:
         funcats.to_csv(os.path.join(data_dir, fname), sep='\t')
     return funcats
+
+
+def align(exps, metadata=None):
+    """
+    exps is a collection of ispec.E2Gs or ispec.PSMs
+
+    metadata is an optional mapping between the repr of each exp
+    (within exps) and the metadata for display.
+    If not specified, uses the repr of each exp
+    """
+    if not metadata:
+        d = {repr(exp): exp.df for exp in exps}
+    else:
+        d = {metadata.get(repr(exp)): exp.df
+             for exp in exps
+        }
+    df = pd.concat( d.values(), axis=1, keys=d.keys() )
+    return df
+
 
 def join_exps(exp1, exp2, normalize=None, seed=None):
     """Nice outer join two experiments based on their geneids. Useful for comparing between experiments.
