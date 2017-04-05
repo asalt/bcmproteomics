@@ -25,7 +25,7 @@ def autolabel(ax):
         color = 'k'
         text_height = height * 1.04
         if text_height > max_:
-            text_height = height * 0.94
+            text_height = height * 0.92
             color='w'
         ax.text(rect.get_x() + rect.get_width()/2., text_height,
                 '%d' % int(height), color=color,
@@ -64,22 +64,25 @@ def plot_nested_bar(df, outer, inner, ax=None, set_ylim=True, **kwargs):
 
 def calc_bins(x):
     """ Freedman Diaconis Estimator"""
-    n = len(x)
     if isinstance(x, pd.DataFrame):
         x = x.values
     x = x[ x != -np.inf ]
+    n = len(x)
     q75, q25 = np.nanpercentile(x, [75 ,25])
     iqr = q75 - q25
     h = 2 * ( iqr / np.power(n, 1/3))
     range_ = x.max() - x.min()
+    if h == 0:
+        return int(np.ceil((n)))
     return int(np.round(np.ceil(range_/h)))
 
-def plot_summary(df, color=None, description=None):
+def plot_summary(df, color=None, description=None, log_counts=True):
     """Plot a nice summary of E2G data.
     df :: DataFrame with data from e2g instance.
           Can be a filtered subset
     color :: color to use for faces of bars
     description :: additional description in the title
+    log_counts :: whether or not to plot log of count data for PSms and Peptides
 
     returns :: matplotlib.figure, axes
     """
@@ -112,6 +115,9 @@ def plot_summary(df, color=None, description=None):
                 plot_data = data.value_counts(sort=False)
             if col != 'SRA':
                 plot_data.index = plot_data.index.astype(int)
+                plot_data = plot_data[plot_data.index.sort_values()]
+            elif col == 'SRA':
+                plot_data = plot_data[['S', 'R', 'A']]
             plot_data.plot(kind='bar', ax=ax, logy=False, alpha=alpha, linewidth=0, color=color)
             autolabel(ax)
             ax.set_xlabel(col)
@@ -122,16 +128,25 @@ def plot_summary(df, color=None, description=None):
 
         if hasattr(data, 'columns') and len(data.columns) == 2:
             outer, inner = data.columns
-            bins = calc_bins(np.log10(data))
-            data[outer].plot.hist(ax=ax, logy=True, alpha=.4,
-                             bins=bins, color=color, linewidth=0, label=outer)
-            data[inner].plot.hist(ax=ax, logy=True, alpha=.8,
-                             bins=bins, color=color, linewidth=0, label=inner)
+            data_ = data
+            if log_counts:
+                data_ = np.log10(data)
+            bindict = dict()
+            for col in data.columns:
+                bins = min(calc_bins(data_[col]), 50)
+                bindict[col] = bins
+            data[inner].plot.hist(ax=ax, logy=log_counts, alpha=.8,
+                             bins=bindict[inner], color=color, linewidth=0, label=inner)
+            data[outer].plot.hist(ax=ax, logy=log_counts, alpha=.4,
+                             bins=bindict[outer], color=color, linewidth=0, label=outer)
             ax.set_xlabel(outer)
             ax.legend()
         else:
-            bins = calc_bins(np.log10(data))
-            data.plot(kind='hist', ax=ax, logy=True, alpha=alpha, linewidth=0, bins=bins, color=color)
+            data_ = data
+            if log_counts:
+                data_ = np.log10(data)
+            bins = min(calc_bins(data_), 50)
+            data.plot(kind='hist', ax=ax, logy=log_counts, alpha=alpha, linewidth=0, bins=bins, color=color)
             ax.set_xlabel(col)
         min_, max_ = ax.get_ylim()
         ax.set_ylim(0, max_)
