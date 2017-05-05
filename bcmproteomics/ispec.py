@@ -966,7 +966,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
                  str(exp2.__getattribute__(attr))
         joinexp.__setattr__(attr, value)
 
-    nofuncats = [col for col in exp1.df.columns if col not in funcat_cols]
+    nofuncats = [col for col in exp1.df.columns if col not in funcat_cols+['GeneID.1']]
     joinexp._df = exp1.df[nofuncats].join(exp2.df[nofuncats],
                                           lsuffix = '_x', rsuffix='_y',
                                           how='outer', )

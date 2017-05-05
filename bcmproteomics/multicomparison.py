@@ -1,7 +1,7 @@
 """Script to run multiple pairwise comparisons"""
 import itertools
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import numpy as np
 import pandas as pd
 from bcmproteomics import ispec
@@ -63,58 +63,96 @@ def format_result(df, name=None):
         usd_stamp = list()
         usd_stamp_prob = list()
         fold_change = list()
+        psms = list()
+        idset = list()
         for comp in all_comps:
             if comp not in grp['comparison'].values:
                 usd_stamp.append('-')
                 usd_stamp_prob.append('-')
                 fold_change.append(0)
+                psms.append(0)
+                idset.append(0)
                 continue
             data = grp[grp['comparison'] == comp].squeeze()
             usd_stamp.append(data['USD'])
             usd_stamp_prob.append(data['USD_prob'])
             fold_change.append(data['dlog_diBAQ'])
+            psms.append(data['dPSMs'])
+            idset.append(data['dIDSet'])
         return pd.Series({'USD_Stamp' : ''.join(usd_stamp),
-                          'USD_Stamp_Prob' : '|'.join(map(str, usd_stamp_prob)),
-                          'fold_changes'   : '|'.join(map(str,fold_change))}
+                          'USD_Probabilities' : '|'.join(map(str, usd_stamp_prob)),
+                          'USD_dPSMs' : '|'.join(map(str, psms)),
+                          'USD_dIDSet' : '|'.join(map(str, idset)),
+                          'USD_iBAQ_Log10_FoldChanges'   : '|'.join(map(str,fold_change))}
         )
 
     def average_subset(row):
-        class_ = row['USD_class']
+        class_ = row['USD_Class']
         if class_ == 'N':
-            return pd.Series({'avg_fold_change':0, 'avg_probability': 0})
+            return pd.Series({'USD_Class_iBAQ_log10_FoldChange':0,
+                              'USD_Class_dPSMs' : 0,
+                              'USD_Class_dIDSet' : 0,
+                              'USD_Class_Probability':0})
         indices = [index for index, value in enumerate(row['USD_Stamp']) if value == class_]
         results = dict()
-        for col in ('fold_changes', 'USD_Stamp_Prob'):
+        for col in ('USD_iBAQ_Log10_FoldChanges', 'USD_Probabilities', 'USD_dPSMs', 'USD_dIDSet'):
             changes = [float(x) for ix, x in enumerate(row[col].split('|'))
                        if ix in indices]
             results['avg_'+col] = np.mean(changes)
-        avg_fold_change = np.mean(changes)
-        avg_prob_       = np.mean(changes)
-        return pd.Series({'avg_fold_change': results['avg_fold_changes'],
-                          'avg_probability': results['avg_USD_Stamp_Prob']
+        return pd.Series({'USD_Class_iBAQ_log10_FoldChange': results['avg_USD_iBAQ_Log10_FoldChanges'],
+                          'USD_Class_dPSMs' : results['avg_USD_dPSMs'],
+                          'USD_Class_dIDSet' : results['avg_USD_dIDSet'],
+                          'USD_Class_Probability': results['avg_USD_Probabilities']
         })
+
+    def rank_class(df):
+        """Rank on per class basis
+        """
+        rank_df = df.assign(ibaq_abs = lambda x: np.abs(x['USD_Class_iBAQ_log10_FoldChange']))
+        rank_on = ['USD_Class_Probability', 'ibaq_abs', 'USD_dIDSet', 'USD_dPSMs']
+
+        return (rank_df.sort_values(by=rank_on, ascending=False)
+                .groupby('USD_Class')
+                .cumcount()+1)
+
+
 
 
     all_comparisons = df['comparison'].unique()
 
     out = df.groupby('GeneID').apply(aggregate, all_comparisons)
-    out['comparisons'] = '|'.join(all_comparisons)
-    out['test_count'] = len(all_comparisons)
-    out['test_name'] = name
+    out['Test_Comparisons'] = '|'.join(all_comparisons)
+    out['Test_Count'] = len(all_comparisons)
+    out['Test_Name'] = name
 
-    out['USD_class'] = 'N'
+    out['USD_Class'] = 'N'
     for s in 'USD':
-        col = s+'_count'
+        col = 'USD_{}_Count'.format(s)
         out[col] = out.USD_Stamp.str.count(s)
-        agree_col = 'agreement_'+s
-        out[agree_col] = out[col] / out['test_count']
-        out.loc[out[agree_col]>=.75, 'USD_class'] = s
-
+        agree_col = 'USD_{}_Agreement'.format(s)
+        out[agree_col] = out[col] / out['Test_Count']
+        out.loc[out[agree_col]>=.75, 'USD_Class'] = s
 
     avgs = out.apply(average_subset, axis=1)
-    return out.join(avgs)
+    out_avgs = out.join(avgs)
+    out_avgs['USD_Class_Rank'] = 0
+    for s in 'UD':
+        out_avgs.loc[out_avgs['USD_Class'] == s, 'USD_Class_Rank'] = rank_class(out_avgs.query('USD_Class == @s'))
+
+    return out_avgs
 
     # probability and average fold change postionally
+
+def _get_meta(grp):
+    keys = ('GeneDescription', 'GeneSymbol')
+    results = dict()
+    for key in keys:
+        try:
+            result = grp[key].unique()[0]
+        except IndexError:
+            result = ''
+        results[key] = result
+    return pd.Series(results)
 
 def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=None):
     """Perform pairwise comparisons across multiple experiments. An average ranking
@@ -146,19 +184,27 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
 
         exp_join = ispec.join_exps(ctrl, treat, normalize=ibaqnorm, seed=seed)  # automatically does the machine learning
         repr_ = '{!r}:{!r}'.format(treat, ctrl)
-        COLS = ['USD', 'USD_prob', 'dlog_diBAQ']
+        COLS = ['USD', 'USD_prob', 'dlog_diBAQ', 'GeneSymbol', 'GeneDescription',
+                'dPSMs', 'dIDSet']
         result = exp_join.df[COLS].copy()
         result['comparison'] = repr_
         results.append(result)
 
-    df = pd.concat(results).reset_index()
+    df = (pd.concat(results)
+          .reset_index()
+          .query('~GeneID.isnull()')
+          .assign(GeneID = lambda x : x['GeneID'].astype(int)))
+
+    metadata = df.groupby('GeneID').apply(_get_meta)
 
     print('Formatting results...')
-    formatted_df = format_result(df, name=name)
-    ctrls_list = '|'.join( repr(x[0]) for x in comparisons )
-    treat_list = '|'.join( repr(x[1]) for x in comparisons )
-    formatted_df['mcControl'] = ctrls_list
-    formatted_df['mcExp']     = treat_list
+    formatted_df = format_result(df, name=name).join(metadata)
+    ctrls_list = '|'.join( sorted(set(repr(x[0]) for x in comparisons)) )
+    treat_list = '|'.join( sorted(set(repr(x[1]) for x in comparisons)) )
+    formatted_df['Test_Controls'] = ctrls_list
+    formatted_df['Test_Experiments']     = treat_list
+    formatted_df['Test_Date']     = datetime.ctime(datetime.now())
+    formatted_df.index = formatted_df.index.astype(int)
 
     return formatted_df
 
@@ -259,4 +305,11 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
     # return (up_df, down_df)
 
     result = _main(pairs, tnormalize=taxon_normalize, desc=description, seed=seed, name=name)
+
+    COLS = [('Test_Name', )]
+
+    COL_MAPPING = OrderedDict()
+
+
+    COL_MAPPING = {'m'}
     return result
