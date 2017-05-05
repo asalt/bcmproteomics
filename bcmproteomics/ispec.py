@@ -952,7 +952,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
             exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_raw'}, inplace=True)
             exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, inplace=True)
 
-    funcat_cols = ['GeneCapacity', 'GeneSymbol', 'GeneDescription', 'FunCats', 'GeneID']
+    funcat_cols = ['GeneCapacity', 'GeneSymbol', 'GeneDescription', 'FunCats']
     funcat1 = exp1.df[funcat_cols]
     funcat2 = exp2.df[funcat_cols]
     funcats = pd.concat([funcat1, funcat2]).drop_duplicates()

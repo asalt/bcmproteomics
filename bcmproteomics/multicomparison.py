@@ -53,18 +53,83 @@ def _taxon_normalizer(df, ratio):
         r = 10**-3  # avoid divide by zero error
     return df[area]/r
 
-def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
+def format_result(df, name=None):
+    """
+    """
+    if name is None:
+        name ='<test name>'
+
+    def aggregate(grp, all_comps):
+        usd_stamp = list()
+        usd_stamp_prob = list()
+        fold_change = list()
+        for comp in all_comps:
+            if comp not in grp['comparison'].values:
+                usd_stamp.append('-')
+                usd_stamp_prob.append('-')
+                fold_change.append(0)
+                continue
+            data = grp[grp['comparison'] == comp].squeeze()
+            usd_stamp.append(data['USD'])
+            usd_stamp_prob.append(data['USD_prob'])
+            fold_change.append(data['dlog_diBAQ'])
+        return pd.Series({'USD_Stamp' : ''.join(usd_stamp),
+                          'USD_Stamp_Prob' : '|'.join(map(str, usd_stamp_prob)),
+                          'fold_changes'   : '|'.join(map(str,fold_change))}
+        )
+
+    def average_subset(row):
+        class_ = row['USD_class']
+        if class_ == 'N':
+            return pd.Series({'avg_fold_change':0, 'avg_probability': 0})
+        indices = [index for index, value in enumerate(row['USD_Stamp']) if value == class_]
+        results = dict()
+        for col in ('fold_changes', 'USD_Stamp_Prob'):
+            changes = [float(x) for ix, x in enumerate(row[col].split('|'))
+                       if ix in indices]
+            results['avg_'+col] = np.mean(changes)
+        avg_fold_change = np.mean(changes)
+        avg_prob_       = np.mean(changes)
+        return pd.Series({'avg_fold_change': results['avg_fold_changes'],
+                          'avg_probability': results['avg_USD_Stamp_Prob']
+        })
+
+
+    all_comparisons = df['comparison'].unique()
+
+    out = df.groupby('GeneID').apply(aggregate, all_comparisons)
+    out['comparisons'] = '|'.join(all_comparisons)
+    out['test_count'] = len(all_comparisons)
+    out['test_name'] = name
+
+    out['USD_class'] = 'N'
+    for s in 'USD':
+        col = s+'_count'
+        out[col] = out.USD_Stamp.str.count(s)
+        agree_col = 'agreement_'+s
+        out[agree_col] = out[col] / out['test_count']
+        out.loc[out[agree_col]>=.75, 'USD_class'] = s
+
+
+    avgs = out.apply(average_subset, axis=1)
+    return out.join(avgs)
+
+    # probability and average fold change postionally
+
+def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=None):
     """Perform pairwise comparisons across multiple experiments. An average ranking
     of each gene is calculated
     """
     if tnormalize is not None:
         _get_genelists()  # load into memory once and only once
 
-    up_genes, down_genes = defaultdict(lambda :
-                                       defaultdict(list)), defaultdict(lambda :
-                                                                       defaultdict(list))
+    # up_genes, down_genes = defaultdict(lambda :
+    #                                    defaultdict(list)), defaultdict(lambda :
+    #                                                                    defaultdict(list))
 
     dtype_dict={'e2g_GeneID': object, 'GeneID': object}
+
+    results = list()
     for exps in comparisons:
         exp_counter = len(comparisons)
         ctrl = exps[0]
@@ -79,66 +144,24 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None):
                 exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_old'}, inplace=True)
                 exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, inplace=True)
 
-        exp_join = ispec.join_exps(ctrl, treat,
-                                   normalize=ibaqnorm, seed=seed)  # automatically does the machine learning
-        if 'USD' not in exp_join.df.columns:
-            continue
+        exp_join = ispec.join_exps(ctrl, treat, normalize=ibaqnorm, seed=seed)  # automatically does the machine learning
+        repr_ = '{!r}:{!r}'.format(treat, ctrl)
+        COLS = ['USD', 'USD_prob', 'dlog_diBAQ']
+        result = exp_join.df[COLS].copy()
+        result['comparison'] = repr_
+        results.append(result)
 
-        df_U = exp_join.df[exp_join.df.USD=='U'].sort_values(by=['dlog_diBAQ','dPSMs'],ascending=[False,
-                                                            False]).reset_index(drop=True)
-        df_D = exp_join.df[exp_join.df.USD=='D'].sort_values(by=['dlog_diBAQ','dPSMs'],ascending=[True,
-                                                            True]).reset_index(drop=True)
-        df_U['ranks'] = df_U.index+1
-        df_D['ranks'] = df_D.index+1
-        for (ix1,U) , (ix2,D) in zip(df_U.iterrows(), df_D.iterrows()):
-            up_genes[U.GeneID]['rank'].append(ix1+1)
-            up_genes[U.GeneID]['desc'].append(desc)
-            up_genes[U.GeneID]['prob'].append(U.USD_prob)
-            up_genes[U.GeneID]['exps'].append('_'.join([str(ctrl.recno),
-                                                        str(ctrl.runno),
-                                                        str(treat.recno),
-                                                        str(treat.runno),
-            ]
-            ))
+    df = pd.concat(results).reset_index()
 
-            down_genes[D.GeneID]['rank'].append(ix2+1)
-            down_genes[D.GeneID]['desc'].append(desc)
-            down_genes[D.GeneID]['prob'].append(D.USD_prob)
-            down_genes[D.GeneID]['exps'].append('_'.join([str(ctrl.recno),
-                                                          str(ctrl.runno),
-                                                          str(treat.recno),
-                                                          str(treat.runno),
-            ]
-            ))
+    print('Formatting results...')
+    formatted_df = format_result(df, name=name)
+    ctrls_list = '|'.join( repr(x[0]) for x in comparisons )
+    treat_list = '|'.join( repr(x[1]) for x in comparisons )
+    formatted_df['mcControl'] = ctrls_list
+    formatted_df['mcExp']     = treat_list
+    formatted_df['']
 
-        df_U.index = df_U['GeneID'].astype('float64')
-        df_D.index = df_D['GeneID'].astype('float64')
-        df_UD = pd.concat([df_U, df_D])
-        exp_join._df = exp_join._df.join(df_UD.ranks)
-        #outname = '_'.join([x.strip(',') for x in exp_join.__repr__().split(' ')])
-        #exp_join.df.to_csv(outpath+outname+'.tab', sep='\t', index=False,
-        #                   columns=['GeneID','ranks','USD','USD_prob'])
-
-        up_genes_df = pd.DataFrame({'GeneID': list(up_genes.keys())})
-        down_genes_df = pd.DataFrame({'GeneID': list(down_genes.keys())})
-        cols = ['GeneID','global_rank','avg_rank','count/total',
-                'exp_print','desc','usd_prob','GeneSymbol','GeneDescription',
-                'FunCats']
-    if not up_genes_df.empty:
-        up_df = _gene_summary(pd.DataFrame({'GeneID': list(up_genes.keys())}),
-                                 up_genes, exp_counter=exp_counter)
-    else:
-        up_df = pd.DataFrame(columns=cols)
-    if not down_genes_df.empty:
-        down_df = _gene_summary(pd.DataFrame({'GeneID': list(down_genes.keys())}),
-                               down_genes, exp_counter=exp_counter)
-    else:
-        down_df = pd.DataFrame(columns=cols)
-    return (up_df, down_df)
-    #u_name = expset+'_up_combined.tab'
-    #d_name = expset+'_down_combined.tab'
-    #up_df.to_csv(outpath+u_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
-    #down_df.to_csv(outpath+d_name, index=False, sep='\t', columns=cols, dtype=dtype_dict)
+    return formatted_df
 
 def _expconstructor(ctrls=None, samples=None, by_pairs=False, data_dir=None):
     """ Magically makes all the data numbers you wish to find
@@ -172,6 +195,7 @@ def _expconstructor(ctrls=None, samples=None, by_pairs=False, data_dir=None):
     return pairs
 
 def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=None,
+                    name=None,
                     taxon_normalize=None, seed=None, by_pairs=False, data_dir=None):
     """
 
@@ -224,7 +248,7 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
         return
 
 
-    pairs = _expconstructor(ctrls, samples, by_pairs=by_pairs)
+    pairs = _expconstructor(ctrls, samples, by_pairs=by_pairs, data_dir=data_dir)
     if not pairs:
         print('No pairs of experiments to compare!')
         return
@@ -232,5 +256,8 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
     if description is None:
         description = datetime.ctime(datetime.now())
 
-    up_df, down_df = _main(pairs, tnormalize=taxon_normalize, desc=description, seed=seed)
-    return (up_df, down_df)
+    # up_df, down_df = _main(pairs, tnormalize=taxon_normalize, desc=description, seed=seed)
+    # return (up_df, down_df)
+
+    result = _main(pairs, tnormalize=taxon_normalize, desc=description, seed=seed, name=name)
+    return result
