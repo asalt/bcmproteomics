@@ -189,10 +189,10 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
         result = exp_join.df[COLS].copy()
         result['comparison'] = repr_
         results.append(result)
-
     df = (pd.concat(results)
           .reset_index()
-          .query('~GeneID.isnull()')
+          .where(lambda x: ~x['GeneID'].isnull()).dropna(how='all')
+          # .query('~GeneID.isnull()')  # not working for some reason on some computers
           .assign(GeneID = lambda x : x['GeneID'].astype(int)))
 
     metadata = df.groupby('GeneID').apply(_get_meta)
