@@ -159,7 +159,6 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
     treat_list = '|'.join( repr(x[1]) for x in comparisons )
     formatted_df['mcControl'] = ctrls_list
     formatted_df['mcExp']     = treat_list
-    formatted_df['']
 
     return formatted_df
 
