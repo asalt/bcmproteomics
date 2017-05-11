@@ -340,8 +340,9 @@ class PSMs(Experiment):
                 self.load_local(self.data_dir)
             else:
                 self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
-        else:
-            self._df = pd.DataFrame() # else set as empty dataframe
+        if self._df is None or len(self.df) == 0:
+            self._df = pd.DataFrame(columns=[x.split('_')[1]
+                                             for x in psm_columns]) # else set as empty dataframe
         self._joined = False
 
     def get_exprun(self, recno, runno, searchno):
@@ -459,9 +460,13 @@ class E2G(Experiment):
                 self.load_local(self.data_dir)
             else:
                 self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
+        if self._df is None or len(self.df) == 0:
+            self._df = pd.DataFrame(columns=[x.split('_')[1]
+                                             for x in e2gcolumns]) # else set as empty dataframe
+        try:
             self.assign_sra(self.df)
-        else:
-            self._df = pd.DataFrame() # else set as empty dataframe
+        except ValueError:
+            print('Could not assign SRA')
         self._joined = False
         self.ibaq_normalize = None
 
