@@ -25,6 +25,7 @@ def get_ispec_params():
     ispec.params['pw'] = 'flask_login'
     ispec.params['database'] = 'iSPEC_BCM'
     ispec.params['website'] = '10.16.3.148:5000'
+    ispec.params['url'] = '10.16.2.74'
     return ispec.params
 
 def check_auth(username, password):
@@ -34,7 +35,7 @@ def check_auth(username, password):
     ispec.params['user'] = username
     ispec.params['pw'] = password
     ispec.params['database'] = 'iSPEC_BCM'
-    ispec.params['website'] = '10.16.3.148:5000'
+    # ispec.params['website'] = '10.16.3.148:5000'
     conn = ispec.filedb_connect()
     if isinstance(conn, str):
         # app.logger.warning('{} is unable to register to {}.'.format(username, ispec_db))
@@ -114,9 +115,7 @@ def data(rec=None, run=1, search=1, typeof='e2g', presplit=0):
 
 @app.cache.memoize(timeout=1000)
 def get_e2g_exp(rec, run=1, search=1):
-    user = current_user
     ispec.params = get_ispec_params()
-    ispec.params['url']  = server.get(user.ispec_db)
     exp = ispec.E2G(rec, run, search,)
     if not exp.df.index.is_unique:
         exp.df.reset_index(drop=True, inplace=True)
@@ -160,4 +159,4 @@ def meta(rec=None, run=1, search=1):
 
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', debug=False, threaded=True)
-    app.run(host='0.0.0.0', debug=True, threaded=False)
+    app.run(host='0.0.0.0', debug=False, threaded=True)
