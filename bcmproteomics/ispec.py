@@ -345,7 +345,7 @@ class PSMs(Experiment):
                                              for x in psm_columns]) # else set as empty dataframe
         self._joined = False
 
-    def get_exprun(self, recno, runno, searchno):
+    async def get_exprun(self, recno, runno, searchno):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
         """
         conn = filedb_connect()
@@ -493,7 +493,7 @@ class E2G(Experiment):
         self.get_exprun(self.recno, self.runno, self.searchno)
 
 
-    def get_exprun(self, recno=None, runno=1, searchno=1):
+    async def get_exprun(self, recno=None, runno=1, searchno=1):
         """queries iSPEC database and grabs the gene product table which is stored in self.df
         """
         conn = filedb_connect()
