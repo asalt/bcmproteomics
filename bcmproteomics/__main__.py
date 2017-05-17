@@ -6,11 +6,15 @@ from functools import wraps
 from flask import (Flask, request, Response, render_template,
                    redirect, url_for)
 from flask_cache import Cache
-
+from click import get_app_dir
 
 from bcmproteomics import ispec
 
 DATADIR = None
+DATADIR = get_app_dir('local-ispec', roaming=False, force_posix=True)
+print('Data stored locally at', DATADIR)
+if not os.path.exists(DATADIR):
+    os.mkdir(DATADIR)
 server = {'bcmproteomics': '10.16.2.74',
           'jun lab': '10.13.14.171',
 }
@@ -55,7 +59,6 @@ def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth = request.authorization
-        print(auth)
         if not auth or not check_auth(auth.username, auth.password):
             return authenticate()
         return f(*args, **kwargs)
@@ -79,7 +82,7 @@ def login():
 def data(rec=None, run=1, search=1, typeof='e2g', presplit=0):
     """
     typeof : type of data to return. Options include e2g or psms"""
-    print('Doing somehting')
+    # print('Doing somehting')
     if typeof == 'e2g':
         exp = get_e2g_exp(rec, run, search)
     elif typeof == 'psms':
@@ -110,13 +113,13 @@ def data(rec=None, run=1, search=1, typeof='e2g', presplit=0):
             ix = stop
 
     # app.logger.info('{!r} has {} lines'.format(exp, len(exp.df)))
-    print('{!r} has {} lines'.format(exp, len(exp.df)))
+    # print('{!r} has {} lines'.format(exp, len(exp.df)))
     return Response(gen(), mimetype='text/csv')
 
 @app.cache.memoize(timeout=1000)
 def get_e2g_exp(rec, run=1, search=1):
     ispec.params = get_ispec_params()
-    exp = ispec.E2G(rec, run, search,)
+    exp = ispec.E2G(rec, run, search, data_dir=DATADIR)
     if not exp.df.index.is_unique:
         exp.df.reset_index(drop=True, inplace=True)
     return exp
@@ -159,4 +162,12 @@ def meta(rec=None, run=1, search=1):
 
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', debug=False, threaded=True)
-    app.run(host='0.0.0.0', debug=False, threaded=True)
+    #app.run(host='0.0.0.0', port=6000, debug=False, threaded=True)
+    from tornado.wsgi import WSGIContainer
+    from tornado.httpserver import HTTPServer
+    from tornado.ioloop import IOLoop
+    
+    http_server = HTTPServer(WSGIContainer(app))
+    http_server.listen(6000)
+    IOLoop.instance().start()
+
