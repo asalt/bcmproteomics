@@ -211,28 +211,29 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
 def _expconstructor(ctrls=None, samples=None, by_pairs=False, data_dir=None):
     """ Magically makes all the data numbers you wish to find
     """
-    ctrls = [(x,1,1) if not isinstance(x,tuple) else x for x in ctrls]
-    samples = [(x,1,1) if not isinstance(x,tuple) else x for x in samples]
-    ctrl_e2gs = []
-    # conn = ispec.filedb_connect()
-    # if isinstance(conn, str):
-    #     print('Unable to connect to iSPEC')
-    #     print(conn)
-    #     return None
-    print('Loading data from iSPEC, please wait...')
-    for ctrl in ctrls:
-        exp = ispec.E2G(*ctrl, data_dir=data_dir)
-        if len(exp.df) != 0: # only pick exps that have data!
-            ctrl_e2gs.append(exp)
-        elif len(exp.df) == 0:
-            print('No data for ', exp, '\nSkipping')
-    sample_e2gs = []
-    for sample in samples:
-        exp = ispec.E2G(*sample, data_dir=data_dir)
-        if len(exp.df) != 0: # only pick exps that have data!
-            sample_e2gs.append(exp)
-        elif len(exp.df) == 0:
-            print('No data for ', exp, '\nSkipping')
+    e2gs = ispec.async_get_datas(ctrls+samples, verbosity=1)
+    ctrl_e2gs = filter(None, [x if len(x.df) > 0 else print('No data for', x, 'skipping..')
+                 for x in e2gs[0:len(ctrls)]])
+    sample_e2gs = filter(None, [x if len(x.df) > 0 else print('No data for', x, 'skipping..')
+                   for x in e2gs[len(ctrls):]])
+
+    # ctrls = [(x,1,1) if not isinstance(x,tuple) else x for x in ctrls]
+    # samples = [(x,1,1) if not isinstance(x,tuple) else x for x in samples]
+    # ctrl_e2gs = []
+    # print('Loading data from iSPEC, please wait...')
+    # for ctrl in ctrls:
+    #     exp = ispec.E2G(*ctrl, data_dir=data_dir)
+    #     if len(exp.df) != 0: # only pick exps that have data!
+    #         ctrl_e2gs.append(exp)
+    #     elif len(exp.df) == 0:
+    #         print('No data for ', exp, '\nSkipping')
+    # sample_e2gs = []
+    # for sample in samples:
+    #     exp = ispec.E2G(*sample, data_dir=data_dir)
+    #     if len(exp.df) != 0: # only pick exps that have data!
+    #         sample_e2gs.append(exp)
+    #     elif len(exp.df) == 0:
+    #         print('No data for ', exp, '\nSkipping')
     if by_pairs:
         return [(ctrl, sample) for ctrl, sample in zip(ctrl_e2gs, sample_e2gs)]
 

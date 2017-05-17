@@ -466,7 +466,7 @@ class E2G(Experiment):
         try:
             self.assign_sra(self.df)
         except ValueError:
-            print('Could not assign SRA')
+            print('Could not assign SRA for {}'.format(self))
         self._joined = False
         self.ibaq_normalize = None
 
@@ -988,3 +988,5 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
         print('Error scoring experiments')
         print(e)
     return joinexp
+
+from .data_loading import *
