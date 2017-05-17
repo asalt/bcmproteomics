@@ -237,8 +237,14 @@ class Experiment:
                            "{database}.iSPEC_Extracts "
                            "WHERE ext_ExtRecNo={extract_no}").format(database=self._database, extract_no=self.extract_no)
         extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
-        extract_fractions = ''.join(extract_info.get('ext_Fractions', ''))
-        extract_protocol = ''.join(extract_info.get('ext_Protocol', '')).replace('\r', ', ')
+        try:
+            extract_fractions = ''.join(extract_info.get('ext_Fractions', ''))
+        except TypeError:
+            extract_fractions = 'None'
+        try:
+            extract_protocol = ''.join(extract_info.get('ext_Protocol', '')).replace('\r', ', ')
+        except TypeError:
+            extract_protocol = 'None'
         conn.close()
         return (extract_fractions, extract_protocol)
 
