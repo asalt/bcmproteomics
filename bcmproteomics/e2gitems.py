@@ -56,6 +56,7 @@ psm_columns = ['psm_' + c for c in (
     'PEP',
     'IonScore',
     'MissedCleavages',
+    'IsolationInterference',
     'IonInjectTime',
     'Charge',
     'mzDa',
