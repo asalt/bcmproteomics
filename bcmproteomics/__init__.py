@@ -8,4 +8,4 @@ from .plotting import plot_summary
 
 
 
-__version__ = '0.0.12'
+__version__ = '0.0.12r2'

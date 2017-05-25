@@ -535,7 +535,7 @@ class E2G(Experiment):
         """
         df = pd.read_sql(sql, conn, index_col='e2g_GeneID')
         df.index.rename('GeneID', inplace=True)
-        df['GeneID'] = df.index.astype('object')
+        # df['GeneID'] = df.index.astype('object')
         df.index = df.index.astype('object')
         df.rename(columns={k: k.split('e2g_')[1] for k in
                [e2gcol for e2gcol in df.columns if e2gcol.startswith('e2g_')]},
