@@ -535,7 +535,7 @@ class E2G(Experiment):
         """
         df = pd.read_sql(sql, conn, index_col='e2g_GeneID')
         df.index.rename('GeneID', inplace=True)
-        # df['GeneID'] = df.index.astype('object')
+        df['GeneID'] = df.index.astype('object')
         df.index = df.index.astype('object')
         df.rename(columns={k: k.split('e2g_')[1] for k in
                [e2gcol for e2gcol in df.columns if e2gcol.startswith('e2g_')]},
@@ -583,7 +583,8 @@ class E2G(Experiment):
         if len(self.df) == 0: # don't save if no data!
             return
         with open(os.path.join(data_dir, '{!r}_e2g.tab'.format(self)), 'w') as data:
-            self.df.to_csv(data, sep='\t', index=True if 'GeneID' == self.df.index.name else False)
+            # self.df.to_csv(data, sep='\t', index=True if 'GeneID' == self.df.index.name else False)
+            self.df.to_csv(data, sep='\t', index=False)
 
     def load_local(self, data_dir=None):
         """Try to load the data from disk rather than over network.
