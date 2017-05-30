@@ -606,6 +606,8 @@ class E2G(Experiment):
             self._df = pd.read_table(e2gfile, index_col='GeneID')
             self._df = reset_index_if_not_unique(self.df)
             self._df['FunCats'] = self.df['FunCats'].fillna('')
+            if self.df.index.name == 'GeneID' and 'GeneID' not in self.df.columns:
+                self.df['GeneID'] = self.df.index
         return self
 
     def strict(self, df=None, set1=False):
