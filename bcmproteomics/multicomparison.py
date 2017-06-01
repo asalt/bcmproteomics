@@ -1,4 +1,6 @@
 """Script to run multiple pairwise comparisons"""
+import os
+import sys
 import itertools
 from datetime import datetime
 from collections import defaultdict, OrderedDict
@@ -181,13 +183,19 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
                                                    axis=1)
                 exp.df.rename(columns={'iBAQ_dstrAdj':'iBAQ_dstrAdj_old'}, inplace=True)
                 exp.df.rename(columns={'ibaq_norm':'iBAQ_dstrAdj'}, inplace=True)
-
+        f = open(os.devnull, 'w')
+        stdout = sys.stdout
+        sys.stdout = f
         exp_join = ispec.join_exps(ctrl, treat, normalize=ibaqnorm, seed=seed)  # automatically does the machine learning
+        sys.stdout = stdout
+        f.close()
+
         repr_ = '{!r}:{!r}'.format(treat, ctrl)
         COLS = ['USD', 'USD_prob', 'dlog_diBAQ', 'GeneSymbol', 'GeneDescription',
                 'dPSMs', 'dIDSet']
         result = exp_join.df[COLS].copy()
         result['comparison'] = repr_
+        result['GeneID'] = result.index
         results.append(result)
     df = (pd.concat(results)
           .reset_index()
