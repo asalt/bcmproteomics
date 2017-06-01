@@ -24,11 +24,16 @@ def fmt_input_data(datas,):
         if isinstance(data, dict):
             fmt_datas.append(data)
         elif isinstance(data, tuple):
-            try:
-                recno, runno, searchno = data
-            except ValueError:
-                print('Invalid format for', data)
-                continue
+            rec_run_search = list()
+            for i in range(3):
+                try:
+                    rec_run_search.append(data[i])
+                except IndexError:
+                    rec_run_search.append(1)
+            recno, runno, searchno = rec_run_search
+            # except ValueError:
+            #     print('Invalid format for', data)
+            #     continue
             fmt_datas.append(dict(recno=recno,
                                   runno=runno,
                                   searchno=searchno))
