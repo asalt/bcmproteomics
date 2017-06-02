@@ -75,13 +75,13 @@ def format_result(df, name=None):
                 psms.append(0)
                 idset.append(0)
                 continue
-            data = grp[grp['comparison'] == comp].squeeze()
+            data = grp[grp['comparison'] == comp].drop_duplicates(subset=['GeneID']).squeeze()
             usd_stamp.append(data['USD'])
             usd_stamp_prob.append(data['USD_prob'])
             fold_change.append(data['dlog_diBAQ'])
             psms.append(data['dPSMs'])
             idset.append(data['dIDSet'])
-        return pd.Series({'USD_Stamp' : ''.join(usd_stamp),
+        return pd.Series({'USD_Stamp' : ''.join(map(str, usd_stamp)),
                           'USD_Probabilities' : '|'.join(map(str, usd_stamp_prob)),
                           'USD_dPSMs' : '|'.join(map(str, psms)),
                           'USD_dIDSet' : '|'.join(map(str, idset)),
@@ -170,8 +170,8 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
     dtype_dict={'e2g_GeneID': object, 'GeneID': object}
 
     results = list()
+    exp_counter = len(comparisons)
     for exps in comparisons:
-        exp_counter = len(comparisons)
         ctrl = exps[0]
         treat = exps[1]
         print('Processing {} vs {}'.format(ctrl, treat))
@@ -322,3 +322,4 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
 
     COL_MAPPING = {'m'}
     return result
+
