@@ -195,7 +195,8 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
                 'dPSMs', 'dIDSet']
         result = exp_join.df[COLS].copy()
         result['comparison'] = repr_
-        result['GeneID'] = result.index
+        if 'GeneID' not in results.columns:
+            result['GeneID'] = result.index
         results.append(result)
     df = (pd.concat(results)
           .reset_index()
@@ -322,4 +323,3 @@ def multicomparison(ctrls=None, samples=None, description=None, ibaq_normalize=N
 
     COL_MAPPING = {'m'}
     return result
-
