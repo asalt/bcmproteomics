@@ -14,30 +14,27 @@ def get_data(recno=None, runno=1, searchno=1, typeof=ispec.E2G, verbosity=1, **k
                                                     searchno))
     return typeof(recno, runno, searchno, **kwargs)
 
-def fmt_input_data(datas,):
+def fmt_input_data(datas):
     """datas is an iterable of rec, run, search
     """
-    if isinstance(datas, (str, int, float)):
-        raise ValueError('input must be list-like')
     fmt_datas = list()
     for data in datas:
         if isinstance(data, dict):
             fmt_datas.append(data)
         elif any(isinstance(data, x) for x in  (tuple, list)):
-            try:
-                if len(data) == 3:
-                    recno, runno, searchno = data
-                elif len(data) == 2:
-                    recno, runno = data
-                    searchno = 1
-                elif len(data) == 1:
-                    recno = data[0]
-                    runno = 1
-                    searchno = 1
-
-            except ValueError:
+            if len(data) == 3:
+                recno, runno, searchno = data
+            elif len(data) == 2:
+                recno, runno = data
+                searchno = 1
+            elif len(data) == 1:
+                recno = data[0]
+                runno = 1
+                searchno = 1
+            else:
                 print('Invalid format for', data)
                 continue
+
             fmt_datas.append(dict(recno=recno,
                                   runno=runno,
                                   searchno=searchno))

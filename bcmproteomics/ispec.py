@@ -995,6 +995,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
         score_experiments(joinexp, seed=seed)
     except Exception as e:
         print('Error scoring experiments')
+        raise(e)
         print(e)
     return joinexp
 
