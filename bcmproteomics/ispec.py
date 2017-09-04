@@ -523,11 +523,21 @@ class E2G(Experiment):
     def assign_sra(df):
         df['SRA'] = 'A'
         df['SRA'] = df['SRA'].astype('category', categories=('S', 'R', 'A'))
-        df.loc[ (df['IDSet'] < 3) &
+
+        df.loc[ (df['IDSet'] == 1) &
+                (df['IDGroup_u2g'] <= 3), 'SRA'] = 'S'
+
+        df.loc[ (df['IDSet'] == 2) &
                 (df['IDGroup'] <= 3), 'SRA'] = 'S'
-        df.loc[ (df['IDSet'] < 3) &
-                (df['IDGroup'] <= 5) &
-                (df['SRA']!= "S"), 'SRA'] = 'R'
+
+        df.loc[ (df['IDSet'] == 1) &
+                (df['SRA'] != 'S') &
+                (df['IDGroup_u2g'] <= 5), 'SRA'] = 'R'
+
+        df.loc[ (df['IDSet'] == 2) &
+                (df['SRA'] != 'S') &
+                (df['IDGroup'] <= 5), 'SRA'] = 'R'
+
 
     @staticmethod
     def _construct_df(sql, conn):
