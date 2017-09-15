@@ -469,12 +469,15 @@ class E2G(Experiment):
         if self._df is None or len(self.df) == 0:
             self._df = pd.DataFrame(columns=[x.split('_')[1]
                                              for x in e2gcolumns]) # else set as empty dataframe
+
+        self._joined = False
+        self.ibaq_normalize = None
+        if self._df.empty:
+            return
         try:
             self.assign_sra(self.df)
         except ValueError:
             print('Could not assign SRA for {}'.format(self))
-        self._joined = False
-        self.ibaq_normalize = None
 
     def __add__(self, other):
         return join_exps(self, other)
