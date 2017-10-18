@@ -49,7 +49,10 @@ def feature_grabber(df):
     #df['IDGroup_y'].replace(0,9, inplace=True)
     #df['IDSet_x'].replace(0,4, inplace=True)  # new IDSet, 4, means doesn't exist
     #df['IDSet_y'].replace(0,4, inplace=True)
-    df.fillna(0, inplace=True)
+    for col in df.columns:
+        if df[col].dtype == float or df[col].dtype == int:
+            df[col] = df[col].fillna(0)
+            # df.fillna(0, inplace=True)
     #df['iBAQ_dstrAdj_x'] =  df['iBAQ_dstrAdj_x'].fillna(0)
     #df['iBAQ_dstrAdj_y'] = df['iBAQ_dstrAdj_y'].fillna(0)
     # ---------------------------------------------------------------------------------------------#
@@ -90,7 +93,10 @@ def feature_grabber(df):
     #  log of the change in the iBAQ
     #feature_cols.remove('e2g_IDGroup')
     df.replace(to_replace=[np.inf], value=1e3, inplace=True)
-    df.fillna(0, inplace=True)  # 0/0 == NaN, for example
+    for col in df.columns:
+        if df[col].dtype == float or df[col].dtype == int:
+            df[col] = df[col].fillna(0)
+    # df.fillna(0, inplace=True)  # 0/0 == NaN, for example
     features = np.array(df[['d'+col for col in feature_cols]])
     return features, df
 
@@ -165,8 +171,11 @@ def get_training_data(merge_cats=True, subsample=True):
         df['USD'] = df.USD.astype('category', categories=['DD', 'D', 'S', 'SS', 'U', 'UU'],
                                   ordered=True)
     elif merge_cats:
-        df['USD'] = df.USD.astype('category', categories=['D', 'S', 'U'],
-                                  ordered=True)
+        # df['USD'] = df.USD.astype('category', categories=['D', 'S', 'U'],
+        #                           ordered=True)
+        df['USD'] = pd.Categorical( df.USD, categories=list('DSU'),
+                                    ordered=True
+        )
 
     # Data wrangling complete
     return features, labels, df

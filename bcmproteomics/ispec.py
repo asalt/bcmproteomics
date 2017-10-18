@@ -473,12 +473,15 @@ class E2G(Experiment):
         if self._df is None or len(self.df) == 0:
             self._df = pd.DataFrame(columns=[x.split('_')[1]
                                              for x in e2gcolumns]) # else set as empty dataframe
+
+        self._joined = False
+        self.ibaq_normalize = None
+        if self._df.empty:
+            return
         try:
             self.assign_sra(self.df)
         except ValueError:
             print('Could not assign SRA for {}'.format(self))
-        self._joined = False
-        self.ibaq_normalize = None
 
     def __add__(self, other):
         return join_exps(self, other)
@@ -527,11 +530,21 @@ class E2G(Experiment):
     def assign_sra(df):
         df['SRA'] = 'A'
         df['SRA'] = df['SRA'].astype('category', categories=('S', 'R', 'A'))
-        df.loc[ (df['IDSet'] < 3) &
+
+        df.loc[ (df['IDSet'] == 1) &
+                (df['IDGroup_u2g'] <= 3), 'SRA'] = 'S'
+
+        df.loc[ (df['IDSet'] == 2) &
                 (df['IDGroup'] <= 3), 'SRA'] = 'S'
-        df.loc[ (df['IDSet'] < 3) &
-                (df['IDGroup'] <= 5) &
-                (df['SRA']!= "S"), 'SRA'] = 'R'
+
+        df.loc[ (df['IDSet'] == 1) &
+                (df['SRA'] != 'S') &
+                (df['IDGroup_u2g'] <= 5), 'SRA'] = 'R'
+
+        df.loc[ (df['IDSet'] == 2) &
+                (df['SRA'] != 'S') &
+                (df['IDGroup'] <= 5), 'SRA'] = 'R'
+
 
     @staticmethod
     def _construct_df(sql, conn):
@@ -999,6 +1012,7 @@ def join_exps(exp1, exp2, normalize=None, seed=None):
         score_experiments(joinexp, seed=seed)
     except Exception as e:
         print('Error scoring experiments')
+        raise(e)
         print(e)
     return joinexp
 
