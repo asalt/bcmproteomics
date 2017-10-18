@@ -22,7 +22,7 @@ try:
     import pyodbc
 except ImportError:
     pass
-from bcmproteomics.e2gitems import e2gcolumns, psm_columns, tmt_columns
+from bcmproteomics.e2gitems import e2gcolumns, psm_columns, tmt_columns, itraq_columns
 try:
     from bcmproteomics.classify import score_experiments
     _classify = True
@@ -360,6 +360,10 @@ class PSMs(Experiment):
         _psm_columns = psm_columns.copy()
         if 'tmt' in self.labeltype.lower():
             _psm_columns += tmt_columns
+        elif 'itraq' in self.labeltype.lower():
+            _psm_columns += itraq_columns
+        print(self.labeltype)
+        print('\n', _psm_columns, '\n')
         sql = ("SELECT {psm_cols} from {database}.iSPEC_data where "
                "psm_EXPRecNo={recno} "
                "AND psm_EXPRunNo={runno} "
