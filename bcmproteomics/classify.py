@@ -92,7 +92,7 @@ def feature_grabber(df):
     feature_cols[-1] = 'log_diBAQ'
     #  log of the change in the iBAQ
     #feature_cols.remove('e2g_IDGroup')
-    df.replace(to_replace=[np.inf], value=1e3, inplace=True)
+    # df.replace(to_replace=[np.inf], value=1e3, inplace=True)
     for col in df.columns:
         if df[col].dtype == float or df[col].dtype == int:
             df[col] = df[col].fillna(0)

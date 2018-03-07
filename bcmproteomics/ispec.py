@@ -7,6 +7,7 @@ import json
 import os
 from getpass import getpass
 from warnings import warn
+from glob import glob
 
 import numpy as np
 import pandas as pd
@@ -55,9 +56,15 @@ def _find_file(target, path):
     :rtype: str
 
     """
-    result = [x for x in os.listdir(path) if x == target]
-    if result:
-        return os.path.abspath(os.path.join(path, result[0]))
+    # result = [x for x in os.listdir(path) if x == target]
+    result = glob(os.path.join(path, target))
+    if result and len(result) == 1:
+        # return os.path.abspath(os.path.join(path, result[0]))
+        return result[0]
+    elif result and len(result) > 1:  # more than 1 file, try to guess which one
+        ret = sorted(result, key=len)[-1]
+        warn('More than 1 file found, {}\nUsing{}'.format(result, ret))
+        return ret
     return None
 
 class Experiment:
@@ -222,7 +229,7 @@ class Experiment:
         self.identifiers = info.get('identifiers')
         self.extract_fractions = info.get('extract_fractions')
         self.extract_protocol = info.get('extract_protocol')
-        self.taxon_ratios = info.get('taxon_ratios')
+        self.taxon_ratios = info.get('taxon_ratios', dict())
         return self
 
     def _add_taxon_ratios(self, hu, mou, gg):
@@ -296,12 +303,19 @@ class Experiment:
             raise ValueError('recno must be specified')
         if data_dir is None:
             data_dir = self.data_dir
-        target = _find_file(target='{!r}.json'.format(self), path=data_dir)
+        target = _find_file(target='{!r}*.json'.format(self), path=data_dir)
         if target is None:
             self.get_metadata(self.recno, self.runno, self.searchno)
             self.save(data_dir)
             return self
-        metadata = json.loads(json.load(open(target, 'r'))) # not sure why this is necessary
+        # try:
+        #     metadata = json.load(open(target, 'r'))
+        # except:
+        try:
+            metadata = json.loads(json.load(open(target, 'r'))) # not sure why this is necessary sometimes
+        except TypeError:
+            metadata = json.load(open(target))
+            # metadata = json.loads(open(target).read())
         self.populate_metadata(metadata)
         return self
 
@@ -421,7 +435,7 @@ class PSMs(Experiment):
 
         """
         self.load_local_metadata(data_dir=data_dir)
-        psmsfile = _find_file(target='{!r}_psms.tab'.format(self), path=data_dir)
+        psmsfile = _find_file(target='{!r}*_psms.tab'.format(self), path=data_dir)
         if psmsfile is None:
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
@@ -611,13 +625,15 @@ class E2G(Experiment):
 
         """
         self.load_local_metadata(data_dir=data_dir)
-        e2gfile = _find_file(target='{!r}_e2g.tab'.format(self), path=data_dir)
+        e2gfile = _find_file(target='{!r}*_e2g.tab'.format(self), path=data_dir)
         if e2gfile is None:
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
         else:
             self._df = pd.read_table(e2gfile, index_col='GeneID')
             self._df = reset_index_if_not_unique(self.df)
+            if 'FunCats' not in self._df:
+                self._df['FunCats'] = ''
             self._df['FunCats'] = self.df['FunCats'].fillna('')
             if self.df.index.name == 'GeneID' and 'GeneID' not in self.df.columns:
                 self.df['GeneID'] = self.df.index
