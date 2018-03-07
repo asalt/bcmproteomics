@@ -195,7 +195,9 @@ def _main(comparisons, ibaqnorm=None, tnormalize=None, desc='', seed=None, name=
                 'dPSMs', 'dIDSet']
         result = exp_join.df[COLS].copy()
         result['comparison'] = repr_
-        result['GeneID'] = result.index
+        result.index.name = 'GeneID'
+        if 'GeneID' in result.columns:
+            result = result.drop('GeneID', axis=1)
         results.append(result)
     df = (pd.concat(results)
           .reset_index()

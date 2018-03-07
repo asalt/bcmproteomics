@@ -2,16 +2,31 @@
 import os
 import json
 from functools import wraps
+import logging
+from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 
 from flask import (Flask, request, Response, render_template,
                    redirect, url_for)
+from flask_login import (login_user, logout_user, current_user,
+                         LoginManager, UserMixin, login_required)
 from flask_cache import Cache
 from click import get_app_dir
 
 from bcmproteomics import ispec
 
+
+
 DATADIR = None
 DATADIR = get_app_dir('local-ispec', roaming=False, force_posix=True)
+LOGDIR = os.path.join(DATADIR, 'logs')
+if not os.path.exists(LOGDIR):
+    os.mkdir(LOGDIR)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler = TimedRotatingFileHandler(os.path.join(LOGDIR, 'bcmproteomics.log'), when='midnight', backupCount=60)
+handler.setLevel(logging.INFO)
+handler.setFormatter(formatter)
+
+
 print('Data stored locally at', DATADIR)
 if not os.path.exists(DATADIR):
     os.mkdir(DATADIR)
@@ -22,20 +37,27 @@ server = {'bcmproteomics': '10.16.2.74',
 app = Flask('bcmproteomics')
 app.config['CACHE_TYPE'] = 'simple'
 app.cache = Cache(app)
+app.logger.setLevel(logging.INFO)
+app.logger.addHandler(handler)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message_category = 'warning'
 
 def get_ispec_params():
     # Set globably once for database access
     ispec.params['user'] = 'flask_login'
     ispec.params['pw'] = 'flask_login'
     ispec.params['database'] = 'iSPEC_BCM'
-    ispec.params['website'] = '10.16.3.148:5000'
     ispec.params['url'] = '10.16.2.74'
+    # ispec.params['website'] = '10.16.3.148:5000'
     return ispec.params
 
 def check_auth(username, password):
     """This function is called to check if a username /
     password combination is valid.
     """
+    app.logger.info('{} is trying to login.'.format(username))
     ispec.params['user'] = username
     ispec.params['pw'] = password
     ispec.params['database'] = 'iSPEC_BCM'
@@ -43,7 +65,11 @@ def check_auth(username, password):
     conn = ispec.filedb_connect()
     if isinstance(conn, str):
         # app.logger.warning('{} is unable to register to {}.'.format(username, ispec_db))
+        ispec.params['database'] = 'iSPEC_BCM'
+        ispec.params['url'] = '10.16.2.74'
+        app.logger.info('{} failed with {}.'.format(username, conn))
         return False
+    app.logger.info('{} successfully logged in.'.format(username))
     return True
 
 
@@ -82,7 +108,7 @@ def login():
 def data(rec=None, run=1, search=1, typeof='e2g', presplit=0):
     """
     typeof : type of data to return. Options include e2g or psms"""
-    # print('Doing somehting')
+
     if typeof == 'e2g':
         exp = get_e2g_exp(rec, run, search)
     elif typeof == 'psms':
@@ -120,6 +146,8 @@ def data(rec=None, run=1, search=1, typeof='e2g', presplit=0):
 def get_e2g_exp(rec, run=1, search=1):
     ispec.params = get_ispec_params()
     exp = ispec.E2G(rec, run, search, data_dir=DATADIR)
+    if 'GeneID' not in exp.df.columns:
+        exp.df['GeneID'] = exp.df.index
     if not exp.df.index.is_unique:
         exp.df.reset_index(drop=True, inplace=True)
     return exp
@@ -141,6 +169,7 @@ def get_psms(rec, run=1, search=1, presplit=False):
 @app.route('/api/funcats/<gids>')
 @requires_auth
 def funcats(gids):
+    print(gids)
     gidlist = gids.split(',')
     funcats = ispec.get_funcats(gidlist)
     return app.response_class(response=funcats.to_json(),
@@ -159,6 +188,14 @@ def meta(rec=None, run=1, search=1):
                               status=200,
                               mimetype='application/json')
 
+@app.route('/api/geneids/<int:taxonid>')
+@requires_auth
+def geneids(taxonid):
+    geneids = ispec.get_geneids(taxonid)
+    json_data = json.dumps(geneids)
+    return app.response_class(response=json_data,
+                              status=200,
+    mimetype='application/json')
 
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', debug=False, threaded=True)
