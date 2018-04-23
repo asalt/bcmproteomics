@@ -21,6 +21,10 @@ e2gcolumns = ['e2g_' + c for c in (
     'GPGroup',
     'GPGroups_all',
     'EXPLabelFLAG',
+    'ProteinGI_GIDGroups', 'ProteinRef_GIDGroups',
+    'ProteinGI_GIDGroupCount', 'ProteinRef_GIDGroupCount',
+    'Coverage',
+    'Coverage_u2g',
     'PSMs',
     'PSMs_u2g',
     'PeptidePrint',
@@ -36,6 +40,7 @@ e2gcolumns = ['e2g_' + c for c in (
     'AreaSum_razor',
     'GeneCapacity',
     'iBAQ_dstrAdj',
+    'SRA'
 )]
 
 
