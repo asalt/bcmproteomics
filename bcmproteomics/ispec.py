@@ -62,6 +62,9 @@ def _find_file(target, path):
         # return os.path.abspath(os.path.join(path, result[0]))
         return result[0]
     elif result and len(result) > 1:  # more than 1 file, try to guess which one
+        result2 = [x for x in result if 'all_e2g.tab' in x]
+        if len(result2) == 1:
+            return result2[0]
         ret = sorted(result, key=len)[-1]
         warn('More than 1 file found, {}\nUsing{}'.format(result, ret))
         return ret
@@ -634,7 +637,7 @@ class E2G(Experiment):
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
         else:
-            self._df = pd.read_table(e2gfile, index_col='GeneID')
+            self._df = pd.read_table(e2gfile, index_col='GeneID', engine='c')
             self._df = reset_index_if_not_unique(self.df)
             if 'FunCats' not in self._df:
                 self._df['FunCats'] = ''
