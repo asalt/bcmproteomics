@@ -37,7 +37,7 @@ e2gcolumns = ['e2g_' + c for c in (
     'AreaSum_u2g_all',
     'AreaSum_max',
     'AreaSum_dstrAdj',
-    'AreaSum_razor',
+    # 'AreaSum_razor',
     'GeneCapacity',
     'iBAQ_dstrAdj',
     'SRA'
@@ -88,7 +88,7 @@ psm_columns = ['psm_' + c for c in (
     'PrecursorArea_split',
     'SequenceArea',
     'PrecursorArea_dstrAdj',
-    'RazorArea',
+    # 'RazorArea',
     'PeptRank',
     'GeneID',
     'GeneIDs_All',
