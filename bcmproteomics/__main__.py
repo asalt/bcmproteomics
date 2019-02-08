@@ -62,7 +62,7 @@ def check_auth(username, password):
     # params.config['iSPEC']['user'] = username
     # params.config['iSPEC']['pw'] = password
     # params.config['iSPEC']['database'] = 'iSPEC_BCM'
-    test_params = dict(user=username, pw=password, database=ispec.login_params.database
+    test_params = dict(user=username, pw=password, database=ispec.login_params.database,
                        url=ispec.login_params.url
     )
     # ispec.params['website'] = '10.16.3.148:5000'
