@@ -44,29 +44,34 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'warning'
 
-def get_ispec_params():
-    # Set globably once for database access
-    ispec.params['user'] = 'flask_login'
-    ispec.params['pw'] = 'flask_login'
-    ispec.params['database'] = 'iSPEC_BCM'
-    ispec.params['url'] = '10.16.2.74'
-    # ispec.params['website'] = '10.16.3.148:5000'
-    return ispec.params
+# def get_ispec_params():
+#     # Set globably once for database access
+#     params = ispec.Conf()
+#     params.config['iSPEC']['user'] = 'flask_login'
+#     params.config['iSPEC']['pw'] = 'flask_login'
+#     params.config['iSPEC']['database'] = 'iSPEC_BCM'
+#     params.config['iSPEC']['url'] = '10.16.2.74'
+#     # ispec.params['website'] = '10.16.3.148:5000'
+#     return params
 
 def check_auth(username, password):
     """This function is called to check if a username /
     password combination is valid.
     """
     app.logger.info('{} is trying to login.'.format(username))
-    ispec.params['user'] = username
-    ispec.params['pw'] = password
-    ispec.params['database'] = 'iSPEC_BCM'
+    # params.config['iSPEC']['user'] = username
+    # params.config['iSPEC']['pw'] = password
+    # params.config['iSPEC']['database'] = 'iSPEC_BCM'
+    test_params = dict(user=username, pw=password, database=ispec.login_params.database
+                       url=ispec.login_params.url
+    )
     # ispec.params['website'] = '10.16.3.148:5000'
-    conn = ispec.filedb_connect()
+
+    conn = ispec.filedb_connect(params=test_params)
     if isinstance(conn, str):
         # app.logger.warning('{} is unable to register to {}.'.format(username, ispec_db))
-        ispec.params['database'] = 'iSPEC_BCM'
-        ispec.params['url'] = '10.16.2.74'
+        # ispec.params['database'] = 'iSPEC_BCM'
+        # ispec.params['url'] = '10.16.2.74'
         app.logger.info('{} failed with {}.'.format(username, conn))
         return False
     app.logger.info('{} successfully logged in.'.format(username))
@@ -144,7 +149,7 @@ def data(rec=None, run=1, search=1, typeof='e2g', presplit=0):
 
 @app.cache.memoize(timeout=1000)
 def get_e2g_exp(rec, run=1, search=1):
-    ispec.params = get_ispec_params()
+    # ispec.params = get_ispec_params()
     exp = ispec.E2G(rec, run, search, data_dir=DATADIR)
     if 'GeneID' not in exp.df.columns:
         exp.df['GeneID'] = exp.df.index
@@ -203,8 +208,7 @@ if __name__ == '__main__':
     from tornado.wsgi import WSGIContainer
     from tornado.httpserver import HTTPServer
     from tornado.ioloop import IOLoop
-    
+
     http_server = HTTPServer(WSGIContainer(app))
     http_server.listen(6000)
     IOLoop.instance().start()
-

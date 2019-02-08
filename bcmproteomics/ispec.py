@@ -5,6 +5,8 @@ BCM Proteomics iSPEC.
 from __future__ import print_function
 import json
 import os
+import re
+import configparser
 from getpass import getpass
 from warnings import warn
 from glob import glob
@@ -12,7 +14,145 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
+from functools import lru_cache
 import click
+
+from click import get_app_dir
+CONF_DIR = get_app_dir('ispec', roaming=False, force_posix=True)
+CONF_FILE = os.path.join(CONF_DIR, 'ispec.conf')
+
+if not os.path.exists(CONF_DIR):
+    os.makedirs(CONF_DIR)
+
+class Conf:
+
+    helps = dict(url='iSPEC IP address', database='iSPEC database name', user='iSPEC username',
+                 pw='password')
+
+    # parameters we get out of config['iSPEC'] configparser
+    attrs = ('url', 'database', 'user', 'pw')
+
+    CONF_FILE = CONF_FILE
+
+    def __init__(self):
+        self._user = None
+        self._pw = None
+        self._database = None
+        self._url = None
+        self.save_all = None
+        self.config = self.read_conf(self.CONF_FILE)
+
+        # self.orig_params = { attr: getattr(self, attr) for attr in self.attrs }
+
+
+    @lru_cache()
+    def read_conf(self, CONF_FILE):
+
+        config = configparser.ConfigParser()
+        config.optionxform = str
+
+        if not os.path.exists(CONF_FILE):
+            config['iSPEC'] = {'url': '',
+                               'database': 'iSPEC_BCM',
+                               'user': '',
+                               'pw': '',
+            }
+            click.echo("Created ispec conf file at {}".format(CONF_FILE))
+            with open(CONF_FILE, 'w') as f:
+                config.write(f)
+
+
+        with open(CONF_FILE, 'r') as f:
+            config.read_file(f)
+
+        if 'iSPEC' not in config:
+            click.echo('iSPEC section missing, config file invalid.')
+            return
+        self.orig_params = dict(config['iSPEC'].items())
+        return config
+
+
+    # @lru_cache()
+    def get_item(self, item):
+        # ispec = self.config['iSPEC']
+        # for key in 'url', 'database', 'user', 'pw':
+        if item not in self.config['iSPEC']:
+            self.config['iSPEC'][item] = ''
+        value = self.config['iSPEC'][item]
+        if value == '':
+            hide_input = True if item == 'pw' else False
+            help_text = self.helps.get(item, '')
+            new_value = click.prompt('No entry for {} found\n{}'.format(item, help_text), hide_input=hide_input)
+            self.config['iSPEC'][item] = new_value
+            return new_value
+        else:
+            return value
+
+    def update_config(self):
+        # diff = [x for x in self.config['iSPEC']]
+        diff = {k: self.config['iSPEC'][k] for k in self.config['iSPEC']
+                if k in self.orig_params and self.config['iSPEC'][k] != self.orig_params[k]}
+        if not diff: # nothing to do
+            return
+
+        if self.save_all is None:
+            save_all = click.confirm('Save user/password? Not recommended on shared computers!')
+            self.save_all = save_all
+        if not self.save_all: # remove
+            user, pw = self.config['iSPEC']['user'], self.config['iSPEC']['pw']
+            self.config['iSPEC']['user'] = ''
+            self.config['iSPEC']['pw'] = ''
+
+        with open(CONF_FILE, 'w') as f:
+            self.config.write(f)
+
+        if not self.save_all: # restore
+            self.config['iSPEC']['user'], self.config['iSPEC']['pw'] = user, pw
+
+        # now update the  "orig params" so we don't keep saving the same thing
+        # over and over
+        for k, v in diff.items():
+            self.orig_params[k] = v
+
+    # do we really need all these?
+    @property
+    def url(self):
+        return self.get_item('url')
+        # if self._url is None:
+        #     self._url =  self.get_item('url')
+        # return self._url
+
+    @property
+    def database(self):
+        return self.get_item('database')
+        # if self._database is None:
+        #     self._database =  self.get_item('database')
+        # return self._database
+
+    @property
+    def user(self):
+        return self.get_item('user')
+        # if self._user is None:
+        #     self._user =  self.get_item('user')
+        # return self._user
+
+    @property
+    def pw(self):
+        return self.get_item('pw')
+        # if self._pw is None:
+        #     self._pw =  self.get_item('pw')
+        # return self._pw
+
+
+    @property
+    def login_params(self):
+        params = { attr: getattr(self, attr) for attr in self.attrs }
+        # now call save:
+        self.update_config()
+        return params
+
+
+login_params = Conf()
 
 pd.set_option(
     "display.width", None,
@@ -62,7 +202,12 @@ def _find_file(target, path):
         # return os.path.abspath(os.path.join(path, result[0]))
         return result[0]
     elif result and len(result) > 1:  # more than 1 file, try to guess which one
-        result2 = [x for x in result if 'all_e2g.tab' in x]
+        dtype = ''
+        if target.endswith('json'):
+            dtype = 'metadata'
+        else:
+            dtype = 'e2g' if 'e2g' in target else 'psms'
+        result2 = [x for x in result if re.search(r'(?<!\d)_{}.tab'.format(dtype), x) ]
         if len(result2) == 1:
             return result2[0]
         ret = sorted(result, key=len)[-1]
@@ -495,10 +640,11 @@ class E2G(Experiment):
         self.ibaq_normalize = None
         if self._df.empty:
             return
-        try:
-            self.assign_sra(self.df)
-        except ValueError:
-            print('Could not assign SRA for {}'.format(self))
+        if 'SRA' not in self.df:
+            try:
+                self.assign_sra(self.df)
+            except ValueError:
+                print('Could not assign SRA for {}'.format(self))
 
     def __add__(self, other):
         return join_exps(self, other)
@@ -778,68 +924,68 @@ class E2G(Experiment):
             print('-'*15,'\n')
 
 
-def _display(iterable):
-    """Display an iterable of things"""
-    mapping = dict()
-    for ix, element in enumerate(iterable):
-        mapping[ix+1] = element
-        print("({}) -- {}".format(ix+1,
-                                  element))
-    return mapping
-def _make_selection(iterable):
-    selected = None
-    value = None
-    mapping = _display(iterable)
-    while not selected or not value:
-        selected = click.prompt('Make a selection from above', type=int)
-        try:
-            value = mapping[selected]
-        except (KeyError, ValueError):
-            print("Invalid Selection\n")
-    return value
+# def _display(iterable):
+#     """Display an iterable of things"""
+#     mapping = dict()
+#     for ix, element in enumerate(iterable):
+#         mapping[ix+1] = element
+#         print("({}) -- {}".format(ix+1,
+#                                   element))
+#     return mapping
+# def _make_selection(iterable):
+#     selected = None
+#     value = None
+#     mapping = _display(iterable)
+#     while not selected or not value:
+#         selected = click.prompt('Make a selection from above', type=int)
+#         try:
+#             value = mapping[selected]
+#         except (KeyError, ValueError):
+#             print("Invalid Selection\n")
+#     return value
 
-def _getlogin():
-    """Checks if the username and password have been established for the current python session.
-    If username or password is undefined, will prompt the user.
+# def _getlogin():
+#     """Checks if the username and password have been established for the current python session.
+#     If username or password is undefined, will prompt the user.
 
-    Defaults to bcmproteomics.
-    """
-    servers = OrderedDict({'bcmproteomics': '10.16.2.74',
-                           'jun lab': '10.13.14.171',
-    })
-    databases = {'10.16.2.74': ['iSPEC_BCM', 'iSPEC_BCM_psms', 'iSPEC_BCM_IDG'],
-                 '10.13.14.171': ['iSPEC'],
-                 }
-    if params.get('user') is None:
-        print('Username is not set')
-        user = click.prompt('Enter your iSPEC username')
-        params['user'] = user
-    if params.get('pw') is None:
-        print('Password is not set')
-        pw = click.prompt('Enter your password', hide_input=True)
-        params['pw'] = pw
-    if params.get('url') is None:
-        print('iSPEC is not set, the options are:')
-        server = _make_selection(servers)
-        # print(*[server for server in servers], sep='\n')
-        # server = input('Select an iSPEC : ').strip()
-        params['url'] = servers.get(server, '10.16.2.74')
-    # elif 'url' in params:
-    #     params['url'] = servers.get(params['url'], '10.16.2.74')
+#     Defaults to bcmproteomics.
+#     """
+#     servers = OrderedDict({'bcmproteomics': '10.16.2.74',
+#                            'jun lab': '10.13.14.171',
+#     })
+#     databases = {'10.16.2.74': ['iSPEC_BCM', 'iSPEC_BCM_psms', 'iSPEC_BCM_IDG'],
+#                  '10.13.14.171': ['iSPEC'],
+#                  }
+#     if params.get('user') is None:
+#         print('Username is not set')
+#         user = click.prompt('Enter your iSPEC username')
+#         params['user'] = user
+#     if params.get('pw') is None:
+#         print('Password is not set')
+#         pw = click.prompt('Enter your password', hide_input=True)
+#         params['pw'] = pw
+#     if params.get('url') is None:
+#         print('iSPEC is not set, the options are:')
+#         server = _make_selection(servers)
+#         # print(*[server for server in servers], sep='\n')
+#         # server = input('Select an iSPEC : ').strip()
+#         params['url'] = servers.get(server, '10.16.2.74')
+#     # elif 'url' in params:
+#     #     params['url'] = servers.get(params['url'], '10.16.2.74')
 
-    if params.get('database') is None:
-        server_url = params['url']
-        if len(databases.get(server_url, [])) == 1:
-            params['database'] = databases[server_url][0]
-        else:
-            print('iSPEC database is not set, the options are:')
-            db = _make_selection(databases[server_url])
-            # print(*[database for database in databases[server_url]], sep='\t')
-            # db = input('Select an iSPEC database: ').strip()
-            params['database'] = databases.get(db, 'iSPEC_BCM')
-    return params
+#     if params.get('database') is None:
+#         server_url = params['url']
+#         if len(databases.get(server_url, [])) == 1:
+#             params['database'] = databases[server_url][0]
+#         else:
+#             print('iSPEC database is not set, the options are:')
+#             db = _make_selection(databases[server_url])
+#             # print(*[database for database in databases[server_url]], sep='\t')
+#             # db = input('Select an iSPEC database: ').strip()
+#             params['database'] = databases.get(db, 'iSPEC_BCM')
+#     return params
 
-def filedb_connect():
+def filedb_connect(params=None):
     """Establish a connection to the BCM Proteomics FileMaker Server.
 
     Returns a database connection, which can then be used to execute sql statements.
@@ -848,7 +994,11 @@ def filedb_connect():
     Password is only stored in memory for the duration of the python session.
     """
 
-    params = _getlogin()
+    # params = _getlogin()
+    # config = Conf()
+    # params = config.login_params
+    if not params:
+        params = login_params.login_params
 
     driver    = 'DRIVER={FileMaker ODBC};'
 
