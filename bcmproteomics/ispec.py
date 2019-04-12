@@ -210,6 +210,9 @@ def _find_file(target, path):
         result2 = [x for x in result if re.search(r'(?<!\d)_{}.tab'.format(dtype), x) ]
         if len(result2) == 1:
             return result2[0]
+        result3 = [x for x in result if any(y in x for y in ['QUANT_{}'.format(dtype), 'QUAL_{}'.format(dtype)])]
+        if len(result3) == 2:
+            return result3
         ret = sorted(result, key=len)[-1]
         warn('More than 1 file found, {}\nUsing{}'.format(result, ret))
         return ret
@@ -783,8 +786,24 @@ class E2G(Experiment):
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
         else:
-            self._df = pd.read_table(e2gfile, index_col='GeneID', engine='c')
-            self._df = reset_index_if_not_unique(self.df)
+            if len(e2gfile) == 2:
+
+                quant = [x for x in e2gfile if 'QUANT' in x]
+                qual = [x for x in e2gfile if 'QUAL' in x]
+                assert len(quant) == len(qual) == 1
+                _quant_df = pd.read_table(quant[0])
+                _qual_df = pd.read_table(qual[0])
+                not_sra = [x for x in _qual_df.columns if x !='SRA']
+
+                self._df = _quant_df.merge(_qual_df[not_sra], on=['EXPRecNo', 'EXPRunNo',
+                                                                  'EXPSearchNo', 'GeneID']
+                )
+                del _quant_df
+                del _qual_df
+
+            else:
+                self._df = pd.read_table(e2gfile, index_col='GeneID', engine='c')
+                self._df = reset_index_if_not_unique(self.df)
             if 'FunCats' not in self._df:
                 self._df['FunCats'] = ''
             self._df['FunCats'] = self.df['FunCats'].fillna('')
