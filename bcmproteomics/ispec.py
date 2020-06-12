@@ -210,7 +210,7 @@ def _find_file(target, path):
         result2 = [x for x in result if re.search(r'(?<!\d)_{}.tab'.format(dtype), x) ]
         if len(result2) == 1:
             return result2[0]
-        result3 = [x for x in result if any(y in x for y in ['QUANT_{}'.format(dtype), 'QUAL_{}'.format(dtype)])]
+        result3 = [x for x in result if any(y in x for y in ['{}_QUANT'.format(dtype), '{}_QUAL'.format(dtype)])]
         if len(result3) == 2:
             return result3
         ret = sorted(result, key=len)[-1]
@@ -234,7 +234,8 @@ class Experiment:
         If data_dir is specified, data will *automatically* be saved in the given directory
     """
 
-    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None):
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None,
+                 only_local=False):
         """Loads metadata for a given experiment.
 
         :param recno: int/str for record number
@@ -248,6 +249,23 @@ class Experiment:
         .. note::
             If data_dir is specified, data will **automatically** be saved in the given directory
         """
+
+        try:
+            recno = int(float(recno))
+        except ValueError:
+            raise ValueError("`recno` could not be coerced to int")
+
+        if runno:
+            try:
+                runno = int(float(runno))
+            except ValueError:
+                raise ValueError("`runno` could not be coerced to int")
+
+        if searchno:
+            try:
+                searchno = int(float(searchno))
+            except ValueError:
+                raise ValueError("`searchno` could not be coerced to int")
 
         self.recno = recno
         self.runno = runno or 1
@@ -268,9 +286,11 @@ class Experiment:
         self._df = pd.DataFrame() # else set as empty dataframe
         if recno is not None and auto_populate:
             if self.data_dir is not None:
-                self.load_local_metadata(self.data_dir)
-            else:
+                self.load_local_metadata(self.data_dir, only_local=only_local)
+            elif not only_local:
                 self.get_metadata(recno, runno, searchno) # self._df gets set through here
+            else:
+                print("No data directory provided and `only_local=True`, not querying iSPEC")
         self._joined = False
         self.ibaq_normalize = None
 
@@ -439,7 +459,7 @@ class Experiment:
             json.dump(self.json_metadata, metaf)
         return
 
-    def load_local_metadata(self, data_dir=None):
+    def load_local_metadata(self, data_dir=None, only_local=False):
         """Try to load the data from disk rather than over network.
         This method is usually invoked automatically and does not usually
         need to be manually invoked.
@@ -455,9 +475,11 @@ class Experiment:
         if data_dir is None:
             data_dir = self.data_dir
         target = _find_file(target='{!r}*.json'.format(self), path=data_dir)
-        if target is None:
+        if target is None and not only_local:
             self.get_metadata(self.recno, self.runno, self.searchno)
             self.save(data_dir)
+            return self
+        elif target is None and only_local:
             return self
         # try:
         #     metadata = json.load(open(target, 'r'))
@@ -590,7 +612,9 @@ class PSMs(Experiment):
 
         """
         self.load_local_metadata(data_dir=data_dir)
-        psmsfile = _find_file(target='{!r}*_psms.tab'.format(self), path=data_dir)
+        # psmsfile = _find_file(target='{!r}*psms*t[sa][vb]'.format(self), path=data_dir)
+        psmsfile = _find_file(target='{!r}*psms*t*'.format(self), path=data_dir)
+        # TODO fix this for QUAL and QUANT
         if psmsfile is None:
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
@@ -613,7 +637,8 @@ class E2G(Experiment):
     .. seealso:: ispec.Experiment
 
         """
-    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None):
+    def __init__(self, recno=None, runno=None, searchno=None, auto_populate=True, data_dir=None,
+                 only_local=False):
         """Container for accessing gene product data for a given experiment
 
         :param recno: int/str for record number
@@ -629,12 +654,15 @@ class E2G(Experiment):
 
         """
         # """Different metadata as well as data"""
-        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate, data_dir=data_dir)
+        super().__init__(recno=recno, runno=runno, searchno=searchno, auto_populate=auto_populate,
+                         data_dir=data_dir, only_local=only_local)
         if recno is not None and auto_populate:
             if data_dir is not None:
-                self.load_local(self.data_dir)
-            else:
+                self.load_local(self.data_dir, only_local=only_local)
+            elif not only_local:
                 self.get_exprun(recno, self.runno, self.searchno) # self._df gets set through here
+            else:
+                print("No data directory provided and `only_local=True`, not querying iSPEC")
         if self._df is None or len(self.df) == 0:
             self._df = pd.DataFrame(columns=[x.split('_')[1]
                                              for x in e2gcolumns]) # else set as empty dataframe
@@ -769,7 +797,7 @@ class E2G(Experiment):
             # self.df.to_csv(data, sep='\t', index=True if 'GeneID' == self.df.index.name else False)
             self.df.to_csv(data, sep='\t', index=False)
 
-    def load_local(self, data_dir=None):
+    def load_local(self, data_dir=None, only_local=False):
         """Try to load the data from disk rather than over network.
         This method is usually invoked automatically and does not usually
         need to be manually invoked.
@@ -780,11 +808,14 @@ class E2G(Experiment):
         :rtype: ispec.E2G
 
         """
-        self.load_local_metadata(data_dir=data_dir)
-        e2gfile = _find_file(target='{!r}*_e2g.tab'.format(self), path=data_dir)
-        if e2gfile is None:
+        self.load_local_metadata(data_dir=data_dir, only_local=only_local)
+        # e2gfile = _find_file(target='{!r}*_e2g*t[sa]|[vb]'.format(self), path=data_dir)
+        e2gfile = _find_file(target='{!r}*_e2g*t*'.format(self), path=data_dir)
+        if e2gfile is None and not only_local:
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
+        elif e2gfile is None and only_local:
+            return self # don't query iSPEC
         else:
             if len(e2gfile) == 2:
 
@@ -793,7 +824,8 @@ class E2G(Experiment):
                 assert len(quant) == len(qual) == 1
                 _quant_df = pd.read_table(quant[0])
                 _qual_df = pd.read_table(qual[0])
-                not_sra = [x for x in _qual_df.columns if x !='SRA']
+                # how does this work for SILAC?
+                not_sra = [x for x in _qual_df.columns if x !='SRA' and x != 'LabelFLAG']
 
                 self._df = _quant_df.merge(_qual_df[not_sra], on=['EXPRecNo', 'EXPRunNo',
                                                                   'EXPSearchNo', 'GeneID']
