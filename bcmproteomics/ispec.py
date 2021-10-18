@@ -1011,7 +1011,10 @@ class E2G(Experiment):
                 del _qual_df
 
             else:
-                self._df = pd.read_table(e2gfile, index_col="GeneID", engine="c")
+                _df = pd.read_table(e2gfile)
+                _df = _df.rename(columns={c: c.split("e2g_")[-1] for c in _df})
+                # self._df = pd.read_table(e2gfile, index_col='GeneID', engine='c')
+                self._df = _df
                 self._df = reset_index_if_not_unique(self.df)
             if "FunCats" not in self._df:
                 self._df["FunCats"] = ""
