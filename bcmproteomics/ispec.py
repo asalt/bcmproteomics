@@ -240,9 +240,14 @@ def _find_file(target, path):
             return result2[0]
         # result3 = [x for x in result if any(y in x for y in ['{}_QUANT'.format(dtype), '{}_QUAL'.format(dtype)])]
         result3 = [x for x in result if any(y in x for y in ["_QUANT", "_QUAL"])]
+        result3 = [x for x in result3 if "labelTMT_TMT_" not in x]
+        result3 = [x for x in result3 if "_all.txt" not in x]
+
         if len(result3) == 2:
             return result3
+
         ret = sorted(result, key=len)[-1]
+
         warn("More than 1 file found, {}\nUsing{}".format(result, ret))
         return ret
     return None
@@ -463,7 +468,7 @@ class Experiment:
         return self
 
     def get_extract_data(self, extractno):
-        """Extract """
+        """Extract"""
         conn = filedb_connect()
         sql_extractdata = (
             "SELECT ext_Fractions, ext_Protocol FROM "
