@@ -202,11 +202,11 @@ def reset_index_if_not_unique(df):
         ):  # don't throw away the index if we don't have it
             df[df.index.name] = df.index
         df = df.reset_index(drop=True)
-        warn(
-            """Returned dataframe not indexed on GeneID due to duplicate records.
-        If this is a labeled experiment you can safely ignore this warning.
-        Note that joining multiple experiments will NOT work correctly."""
-        )
+        # warn(
+        #     """Returned dataframe not indexed on GeneID due to duplicate records.
+        # If this is a labeled experiment you can safely ignore this warning.
+        # Note that joining multiple experiments will NOT work correctly."""
+        # )
     return df
 
 
@@ -219,9 +219,36 @@ def _find_file(target, path):
     :rtype: str
 
     """
+
+    dtype = ""
+    if target.endswith("json"):
+        dtype = "metadata"
+    else:
+        dtype = "e2g" if "e2g" in target else "psm"
+
     # result = [x for x in os.listdir(path) if x == target]
 
-    result = glob(os.path.join(path, target))
+    # result = glob(os.path.join(path, target))
+    globstr = os.path.join(path, "**", target)
+    result = glob(globstr, recursive=True)
+    # import ipdb
+
+    # ipdb.set_trace()
+    # prioritize dtype_QUAL and dtype_QUANT if present
+    # eventually this will become default
+    if any("_QUAL" in x for x in result) and any("_QUANT" in x for x in result):
+        result3 = [
+            x
+            for x in result
+            if dtype in x and ("QUAL" in x or "QUANT" in x)
+            # if any(y in x for y in
+            # (f"{dtype}_QUANT", f"{dtype}_QUAL")
+            #  ["{}_QUANT".format(dtype), "{}_QUAL".format(dtype)])
+        ]
+        result3 = [x for x in result3 if "labelTMT_TMT_" not in x]
+        if len(result3) == 2:
+            return result3
+
     if result and len(result) == 1:
         # return os.path.abspath(os.path.join(path, result[0]))
         return result[0]
@@ -247,7 +274,6 @@ def _find_file(target, path):
             return result3
 
         ret = sorted(result, key=len)[-1]
-
         warn("More than 1 file found, {}\nUsing{}".format(result, ret))
         return ret
     return None
@@ -720,7 +746,12 @@ class PSMs(Experiment):
         psmsfile = _find_file(target="{!r}*psm*t*".format(self), path=data_dir)
 
         # TODO fix this for QUAL and QUANT
+        ## this is now done within the `_find_files` func.
+        # if len(psmsfile) > 2:
+        #     psmsfile = [x for x in psmsfile if "psms_all.txt" not in x]
+        #     # hack to remove "psms_all" combined file when "psms_QUAL" and "psms_QUANT" exist
         if psmsfile is None and not only_local:
+
             self.get_exprun(self.recno, self.runno, self.searchno)
             self.save(data_dir)
         elif psmsfile is None and only_local:
@@ -767,6 +798,27 @@ class PSMs(Experiment):
                     indicator=True,
                     how="left",
                 )
+
+            # alternative way, not as clear
+            # if len(psmsfile) == 1:
+            #     self._df = pd.read_table(psmsfile)
+            # elif len(psmsfile) == 2:
+            #     _qual = list(filter(lambda x: "QUAL" in x, psmsfile))[0]
+            #     _quant = list(filter(lambda x: "QUANT" in x, psmsfile))[0]
+            #     _df1 = pd.read_table(_qual)
+            #     _df2 = pd.read_table(_quant)
+            #     _toignore = (
+            #         "LabelFLAG",
+            #         "SequenceModi",
+            #         "PrecursorArea",
+            #         "PrecursorArea_dstrAdj",
+            #         "PrecursorArea_split",
+            #         "SequenceArea",  # this is ultimately what we want
+            #         # "SequenceModi",
+            #     )
+            #     _df = _df2.merge(
+            #         # _df1[[x for x in _df1 if x not in ("LabelFLAG", "SequenceModi")]],
+            #         _df1[[x for x in _df1 if x not in _toignore]],
                 del _quant_df
                 del _qual_df
 
@@ -1020,7 +1072,10 @@ class E2G(Experiment):
                 del _qual_df
 
             else:
-                self._df = pd.read_table(e2gfile, index_col="GeneID", engine="c")
+                _df = pd.read_table(e2gfile, index_col="GeneID", engine="c")
+                _df = _df.rename(columns={c: c.split("e2g_")[-1] for c in _df})
+                # self._df = pd.read_table(e2gfile, index_col='GeneID', engine='c')
+                self._df = _df
                 self._df = reset_index_if_not_unique(self.df)
             if "FunCats" not in self._df:
                 self._df["FunCats"] = ""
