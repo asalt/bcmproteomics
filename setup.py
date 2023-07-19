@@ -30,6 +30,6 @@ setup(
         'Programming Language :: Python :: 3.5',
     ],
     package_data={
-        'bcmproteomics': ['training_data/*.txt'],
+        #'bcmproteomics': ['training_data/*.txt'],
     },
 )

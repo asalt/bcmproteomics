@@ -2,7 +2,7 @@ matplotlib
 numpy
 pandas
 scipy
-sklearn
+scikit-learn
 statsmodels
 seaborn
 click
