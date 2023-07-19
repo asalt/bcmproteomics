@@ -9,7 +9,7 @@ from flask import (Flask, request, Response, render_template,
                    redirect, url_for)
 from flask_login import (login_user, logout_user, current_user,
                          LoginManager, UserMixin, login_required)
-from flask_cache import Cache
+#from flask_cache import Cache
 from click import get_app_dir
 
 from bcmproteomics import ispec
@@ -30,13 +30,13 @@ handler.setFormatter(formatter)
 print('Data stored locally at', DATADIR)
 if not os.path.exists(DATADIR):
     os.mkdir(DATADIR)
-server = {'bcmproteomics': '10.16.2.74',
+server = {'bcmproteomics': '10.16.1.44',
           'jun lab': '10.13.14.171',
 }
 
 app = Flask('bcmproteomics')
 app.config['CACHE_TYPE'] = 'simple'
-app.cache = Cache(app)
+#app.cache = Cache(app)
 app.logger.setLevel(logging.INFO)
 app.logger.addHandler(handler)
 login_manager = LoginManager()
@@ -147,7 +147,7 @@ def data(rec=None, run=1, search=1, typeof='e2g', presplit=0):
     # print('{!r} has {} lines'.format(exp, len(exp.df)))
     return Response(gen(), mimetype='text/csv')
 
-@app.cache.memoize(timeout=1000)
+#@app.cache.memoize(timeout=1000)
 def get_e2g_exp(rec, run=1, search=1):
     # ispec.params = get_ispec_params()
     exp = ispec.E2G(rec, run, search, data_dir=DATADIR)
@@ -157,12 +157,12 @@ def get_e2g_exp(rec, run=1, search=1):
         exp.df.reset_index(drop=True, inplace=True)
     return exp
 
-@app.cache.memoize(timeout=1000)
+#@app.cache.memoize(timeout=1000)
 def get_exp(rec, run=1, search=1):
     exp = ispec.Experiment(rec, run, search)
     return exp
 
-@app.cache.memoize(timeout=1000)
+#@app.cache.memoize(timeout=1000)
 def get_psms(rec, run=1, search=1, presplit=False):
     if isinstance(presplit, str) and presplit.lower() == 'true' or presplit == 1:
         presplit_ = True
@@ -186,7 +186,13 @@ def funcats(gids):
 def meta(rec=None, run=1, search=1):
     exp = get_exp(rec, run, search)
     d = dict()
-    for attr in [x for x in exp.__dict__.keys() if not x.startswith('_')]:
+    _toexclude = [x for x in exp.__dict__.keys() if x.startswith('_') or x == "metadata"]
+    #for attr in [x for x in exp.__dict__.keys() if not x.startswith('_')]:
+    if exp.metadata is not None:
+        app.logger.info("sending metadata through json export")
+        d['metadata'] = exp.metadata.to_json()
+    for attr in [*set(exp.__dict__.keys()) - set(_toexclude)]:
+        # logging.info(attr)
         d[attr] = exp.__getattribute__(attr)
     json_data = json.dumps(d)
     return app.response_class(response=json_data,
