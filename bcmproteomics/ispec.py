@@ -16,6 +16,9 @@ import pandas as pd
 from collections import OrderedDict
 from functools import lru_cache
 import click
+import logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 from click import get_app_dir
 CONF_DIR = get_app_dir('ispec', roaming=False, force_posix=True)
@@ -283,6 +286,9 @@ class Experiment:
     #         raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__, name))
 
 
+    @property
+    def metadata(self):
+        return self._metadata
 
     @property
     def df(self):
@@ -299,24 +305,93 @@ class Experiment:
             raise NotImplementedError('Cannot reload data for a joined experiment.')
         self.get_exprun(self.recno, self.runno, self.searchno)
 
-    def get_metadata(self, recno, runno, searchno):
+    def get_metadata(self, recno, runno=1, searchno=1, label=0):
         if not recno:
             raise ValueError('recno must be specified')
         if runno is None:
             runno = 1  # make sure default runno is 1
         if searchno is None:
             searchno = 1
+        self.recno = recno
+        self.runno = runno
 
         conn = filedb_connect()
+        database = ispec.login_params.database # should be str
         if isinstance(conn, str):
             return # failed to make connection, user is informed in filedb_connect()
 
-        sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
-                           "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
-                           "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
-                           "from {database}.iSPEC_Experiments where exp_EXPRecNo={recno}").format(database=self._database,
-                                                                                                  recno=recno)
+        #col_str = "xp_EXPLabelFLAG, exp_LabelType"
+        COLUMNS = [
+        "exprun_EXPRecNo", "exprun_EXPRunNo", "exprun_EXPSearchNo",
+        "exp_EXPLabelFLAG",
+        "exp_EXPLabelType",
+        "exp_Extract_No",
+        "exp_Extract_CellTissue",
+        "exp_Extract_Genotype",
+        "exp_ExpType",
+        "exp_DisplayID",
+        "exp_Exp_Experimenter",
+        "exp_Exp_Date",
+        "exp_Extract_Treatment",
+        "exp_Extract_Amount",
+        "exp_Extract_Fractions",
+        "exp_Extract_TaxonID_lu",
+        "exp_ProtocolNo",
+        "exp_Washes",
+        "exp_Separation_1",
+        "exp_Separation_1Detail",
+        "exp_Separation_2",
+        "exp_Separation_2Detail",
+        # "expSeparation_3",
+        # "exp_Separation_3Detail",
+        "exprun_TaxonID",
+        "exprun_Search_EnzymeSetting",
+        "exprun_MS_Instrument",
+        "exprun_MS_Experimenter",
+        "exprun_Grouper_RefDatabase",
+        "exprun_search_RefDatabase",
+        ]
+        col_str = str.join(", ", COLUMNS)
+        #col_str = "exprun_EXPRecNo, exprun_EXPRunNo, exprun_EXPSearchNo "
+
+        sql_query =("SELECT",
+            col_str,
+            f"from {database}.iSPEC_ExperimentRuns INNER JOIN {database}.iSPEC_Experiments on",
+            f"{database}.iSPEC_Experiments.exp_EXPRecNo = {database}.iSPEC_Experimentruns.exprun_EXPRecNo",
+	    "WHERE ",
+        f"exprun_EXPRecNo={recno} AND",
+        f"exprun_EXPRunNo={runno} AND",
+        f"exprun_EXPSearchNo={searchno}"
+	    # f"{database}.iSPEC_ExperimentRuns.exprun_EXPRecNo={recno} ",
+	    # f"AND {database}.iSPEC_ExperimentRuns.exprun_EXPRunNo={runno} ",
+	    # f"AND {database}.iSPEC_ExperimentRuns.exprun_EXPSearchNo={searchno} ",
+            )
+            # f"{database}.iSPEC_Experiments.exprun_EXPRecNo={recno} ",
+        # database = self._database
+        # #  or database = ispec.login_params.database
+        # testing 
+        logger.info(f"sql_query: {sql_query}")
+        df = pd.read_sql(str.join(" ",sql_query), conn)
+        self._metadata = df
+	# this is our "replacement" metadata to supersede what comes next
+        #info = df.to_dict("list")
+        # testing 
+        #
+
+        #sql_description = ("SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
+        #                   "exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
+        #                   "exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
+        #                   "from {database}.iSPEC_Experiments where exp_EXPRecNo={recno}").format(database=self._database,
+        #                                                                                          recno=recno)
+
+        sql_description = (f"SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
+                           f"exp_Extract_Treatment, exp_IDENTIFIER, exp_Extract_No, "
+                           f"exp_Extract_Genotype, exp_AddedBy, exp_Digest_Type, exp_Digest_Enzyme "
+                           f"from {database}.iSPEC_Experiments where exp_EXPRecNo={recno}")
         info = pd.read_sql(sql_description, conn).to_dict('list') # a 1 row dataframe
+
+        #import ipdb; ipdb.set_trace()
+        info = df.to_dict("list")
         self.sample = ''.join(item for item in info.get('exp_Extract_CellTissue', '') if item)
         self.treatment = ''.join(item for item in info.get('exp_Extract_Treatment', '') if item)
         self.exptype = ''.join(item for item in info.get('exp_EXPClass', '') if item)
@@ -326,10 +401,14 @@ class Experiment:
         self.added_by = ''.join(item for item in info.get('exp_AddedBy', '') if item)
         self.digest_type = ''.join(item for item in info.get('exp_Digest_Type', '') if item)
         self.digest_enzyme = ''.join(item for item in info.get('exp_Digest_Enzyme', '') if item)
-        self.extract_no = ''.join(str(item) for item in info.get('exp_Extract_No', 0) if item)
+        # import ipdb; ipdb.set_trace()
+        _extract = info.get('exp_Extract_No', 0)
+        if isinstance(_extract, list):
+            _extract = set(_extract)
+        # self.extract_no = ''.join(str(item) for item in set(info.get('exp_Extract_No', [0])) if item)
+        #self.extract_no = ''.join(str(item) for item in _extract if item)
+        self.extract_no = f"{_extract}",
         self.identifiers = ''.join(item for item in info.get('exp_IDENTIFIER', '') if item).splitlines()
-        self.recno = recno
-        self.runno = runno
         self.searchno = searchno
         if self.extract_no:
             extract_fractions, extract_protocol = self.get_extract_data(self.extract_no)
@@ -391,7 +470,10 @@ class Experiment:
         sql_extractdata = ("SELECT ext_Fractions, ext_Protocol FROM "
                            "{database}.iSPEC_Extracts "
                            "WHERE ext_ExtRecNo={extract_no}").format(database=self._database, extract_no=self.extract_no)
-        extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
+        try:
+            extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
+        except pd.io.sql.DatabaseError:
+            return '', ''
         try:
             extract_fractions = ''.join(extract_info.get('ext_Fractions', ''))
         except TypeError:
