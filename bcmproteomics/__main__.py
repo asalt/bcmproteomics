@@ -189,7 +189,7 @@ def meta(rec=None, run=1, search=1):
     _toexclude = [x for x in exp.__dict__.keys() if x.startswith('_') or x == "metadata"]
     #for attr in [x for x in exp.__dict__.keys() if not x.startswith('_')]:
     if exp.metadata is not None:
-        logger.info("sending metadata through json export")
+        app.logger.info("sending metadata through json export")
         d['metadata'] = exp.metadata.to_json()
     for attr in [*set(exp.__dict__.keys()) - set(_toexclude)]:
         # logging.info(attr)

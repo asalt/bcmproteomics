@@ -380,8 +380,6 @@ class Experiment:
     #     else:
     #         raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__, name))
 
-<<<<<<< HEAD
-
     @property
     def metadata(self):
         return self._metadata
@@ -506,7 +504,6 @@ class Experiment:
         #self.extract_no = ''.join(str(item) for item in _extract if item)
         self.extract_no = f"{_extract}",
         self.identifiers = ''.join(item for item in info.get('exp_IDENTIFIER', '') if item).splitlines()
-            return  # failed to make connection, user is informed in filedb_connect()
 
         sql_description = (
             "SELECT exp_EXPClass, exp_Extract_CellTissue, exp_Exp_Description,"
@@ -545,29 +542,28 @@ class Experiment:
         ).splitlines()
         self.recno = recno
         self.runno = runno
->>>>>>> 9af07b5b69a96860bf806bf7fa45c6ac13545381
         self.searchno = searchno
         if self.extract_no:
             extract_fractions, extract_protocol = self.get_extract_data(self.extract_no)
             self.extract_fractions = extract_fractions
             self.extract_protocol = extract_protocol
 
-        additional_info = (
-            "SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031, "
-            "exprun_LabelType, exprun_Grouper_Version "
-            "from {database}.iSPEC_ExperimentRuns where "
-            "exprun_EXPRecNo={recno} "
-            "AND exprun_EXPRunNo={runno} "
-            "AND exprun_EXPSearchNo={searchno}"
-        ).format(recno=recno, runno=runno, searchno=searchno, database=self._database)
-        cursor = conn.cursor()
-        cursor.execute(additional_info)
-        additional_info_result = cursor.fetchone()
-        if additional_info_result:
-            hu, mou, gg, labeltype, pygrouper_version = additional_info_result
-            self._add_taxon_ratios(hu, mou, gg)
-            self._assign_labeltype(labeltype)
-            self.pygrouper_version = pygrouper_version
+        # additional_info = (
+        #    "SELECT exprun_Fraction_9606, exprun_Fraction_10090, exprun_Fraction_9031, "
+        #    "exprun_LabelType, exprun_Grouper_Version "
+        #    "from {database}.iSPEC_ExperimentRuns where "
+        #    "exprun_EXPRecNo={recno} "
+        #    "AND exprun_EXPRunNo={runno} "
+        #    "AND exprun_EXPSearchNo={searchno}"
+        #).format(recno=recno, runno=runno, searchno=searchno, database=self._database)
+        #cursor = conn.cursor()
+        #cursor.execute(additional_info)
+        #additional_info_result = cursor.fetchone()
+        #if additional_info_result:
+        #    hu, mou, gg, labeltype, pygrouper_version = additional_info_result
+        #    self._add_taxon_ratios(hu, mou, gg)
+        #    self._assign_labeltype(labeltype)
+        #    self.pygrouper_version = pygrouper_version
 
         return self
 
@@ -601,7 +597,6 @@ class Experiment:
     def get_extract_data(self, extractno):
         """Extract"""
         conn = filedb_connect()
-<<<<<<< HEAD
         sql_extractdata = ("SELECT ext_Fractions, ext_Protocol FROM "
                            "{database}.iSPEC_Extracts "
                            "WHERE ext_ExtRecNo={extract_no}").format(database=self._database, extract_no=self.extract_no)
@@ -609,7 +604,6 @@ class Experiment:
             extract_info = pd.read_sql(sql_extractdata, conn).to_dict('list') # a 1 row dataframe
         except pd.io.sql.DatabaseError:
             return '', ''
-=======
         sql_extractdata = (
             "SELECT ext_Fractions, ext_Protocol FROM "
             "{database}.iSPEC_Extracts "
@@ -618,7 +612,6 @@ class Experiment:
         extract_info = pd.read_sql(sql_extractdata, conn).to_dict(
             "list"
         )  # a 1 row dataframe
->>>>>>> 9af07b5b69a96860bf806bf7fa45c6ac13545381
         try:
             extract_fractions = "".join(extract_info.get("ext_Fractions", ""))
         except TypeError:
