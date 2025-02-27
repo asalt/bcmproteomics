@@ -276,7 +276,10 @@ def _find_file(target, path):
         if len(result3) == 2:
             return result3
 
-        ret = sorted(result, key=len)[-1]
+        if result3:
+            ret = sorted(result3, key=len)[-1]
+        else:
+            ret = sorted(result, key=len)[-1]
         warn("More than 1 file found, {}\nUsing{}".format(result, ret))
         return ret
     return None
@@ -870,8 +873,9 @@ class PSMs(Experiment):
                 quant = [x for x in psmsfile if "QUANT" in x]
                 qual = [x for x in psmsfile if "QUAL" in x]
                 assert len(quant) == len(qual) == 1
+                # import ipdb; ipdb.set_trace()
                 _quant_df = pd.read_table(quant[0], dtype={"GeneID": "str"})
-                _quant_df = _quant_df[~_quant_df.PeptRank.isna()]
+                #_quant_df = _quant_df[~_quant_df.PeptRank.isna()]
                 _qual_df = pd.read_table(qual[0], dtype={"GeneID": "str"})
                 # how does this work for SILAC?
                 # not_sra = [x for x in _qual_df.columns if x !='SRA' and x != 'LabelFLAG']
