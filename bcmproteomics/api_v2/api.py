@@ -241,8 +241,14 @@ def _maybe_parse_datetime(value):
         dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
 
+PK_DEFAULTS = {
+        "iSPEC_Projects" : "prj_PRJRecNo"
+        }
+
 
 def _infer_pk_field(cursor, table_name, available_fields):
+    if table_name in PK_DEFAULTS:
+        return PK_DEFAULTS[table_name]
     try:
         rows = list(cursor.primaryKeys(table=table_name))
     except Exception:
