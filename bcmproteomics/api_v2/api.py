@@ -370,6 +370,7 @@ def v2_legacy_table_rows(tablename):
 
     modified_field_raw = request.args.get("modified_field") or request.args.get("modified_ts")
     pk_field_raw = request.args.get("pk_field") or request.args.get("pk")
+    ids_raw = request.args.get("ids") or request.args.get("id")
 
     try:
         limit = int(float(request.args.get("limit", 1000)))
@@ -501,6 +502,39 @@ def v2_legacy_table_rows(tablename):
                     dict(ok=False, error=f"Unknown pk_field: {pk_field_raw}", table=resolved_table),
                     status=400,
                 )
+
+        ids = None
+        if ids_raw:
+            parts = [p.strip() for p in str(ids_raw).split(",") if p.strip()]
+            ids = []
+            for part in parts:
+                try:
+                    ids.append(int(part))
+                except ValueError:
+                    ids.append(part)
+
+            if not ids:
+                return _json_response(dict(ok=False, error="No ids provided"), status=400)
+
+            if pk_field is None:
+                pk_field = _infer_pk_field(cursor, resolved_table, available_fields)
+                if pk_field is None:
+                    return _json_response(
+                        dict(
+                            ok=False,
+                            error="Unable to infer pk_field; pass pk_field explicitly",
+                            table=resolved_table,
+                        ),
+                        status=400,
+                    )
+
+            placeholders = ",".join(["?"] * len(ids))
+            ids_clause = f"{_quote_ident(pk_field)} IN ({placeholders})"
+            if where_quoted:
+                where_quoted = f"({where_quoted}) AND ({ids_clause})"
+            else:
+                where_quoted = ids_clause
+            params.extend(ids)
 
         # Ensure cursor fields are included when cursoring.
         if modified_field is not None and modified_field not in selected_fields:

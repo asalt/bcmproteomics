@@ -197,7 +197,28 @@ class TestAPIV2(unittest.TestCase):
         self.assertIn("prj_PRJRecNo", executed_sql)
         self.assertEqual(len(executed_params), 3)
 
+    def test_legacy_rows_filters_by_ids(self):
+        self.cursor.executed.clear()
+        self.cursor._rows = [
+            (12, "B"),
+        ]
+
+        resp = self.client.get(
+            "/api/v2/legacy/tables/iSPEC_Projects/rows"
+            "?fields=prj_ProjectTitle"
+            "&ids=12"
+            "&limit=10",
+            headers=_auth_headers(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertEqual(payload["items"][0]["prj_ProjectTitle"], "B")
+
+        executed_sql, executed_params = self.cursor.executed[-1]
+        self.assertIn("IN", executed_sql.upper())
+        self.assertIn("prj_PRJRecNo", executed_sql)
+        self.assertIn(12, executed_params)
+
 
 if __name__ == "__main__":
     unittest.main()
-
