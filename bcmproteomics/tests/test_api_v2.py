@@ -39,6 +39,8 @@ class FakeCursor:
     def primaryKeys(self, table=None):
         if self._pk_field is None:
             return []
+        if isinstance(self._pk_field, (list, tuple)):
+            return [SimpleNamespace(column_name=field) for field in self._pk_field]
         return [SimpleNamespace(column_name=self._pk_field)]
 
     def execute(self, query, params=None):
@@ -196,6 +198,82 @@ class TestAPIV2(unittest.TestCase):
         self.assertIn("prj_ModificationTS", executed_sql)
         self.assertIn("prj_PRJRecNo", executed_sql)
         self.assertEqual(len(executed_params), 3)
+
+    def test_legacy_rows_supports_composite_pk_fields_cursor(self):
+        self.cursor._tables.append((None, None, "iSPEC_ExperimentRuns", "TABLE", None))
+        self.cursor._table_descriptions["iSPEC_ExperimentRuns"] = [
+            _col("exprun_EXPRecNo"),
+            _col("exprun_EXPRunNo"),
+            _col("exprun_EXPSearchNo"),
+            _col("exprun_ModificationTS"),
+            _col("exprun_Label"),
+        ]
+        self.cursor.executed.clear()
+
+        ts = datetime(2025, 1, 1, 0, 0, 0)
+        self.cursor._rows = [
+            (1, 1, 1, ts, "A"),
+            (1, 1, 2, ts, "B"),
+            (1, 2, 1, ts, "C"),
+        ]
+
+        resp = self.client.get(
+            "/api/v2/legacy/tables/iSPEC_ExperimentRuns/rows"
+            "?fields=exprun_Label"
+            "&since=2025-01-01T00:00:00Z"
+            "&since_pk=1,1,0"
+            "&modified_field=exprun_ModificationTS"
+            "&pk_fields=exprun_EXPRecNo,exprun_EXPRunNo,exprun_EXPSearchNo"
+            "&limit=2",
+            headers=_auth_headers(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+
+        self.assertTrue(payload["has_more"])
+        self.assertEqual(payload["next_since_pk"], [1, 1, 2])
+        self.assertEqual(
+            payload["pk_fields"], ["exprun_EXPRecNo", "exprun_EXPRunNo", "exprun_EXPSearchNo"]
+        )
+
+        executed_sql, executed_params = self.cursor.executed[-1]
+        self.assertIn("exprun_ModificationTS", executed_sql)
+        self.assertIn("exprun_EXPRecNo", executed_sql)
+        # 2 for modified cursor + 1+2+3 composite key tie-break
+        self.assertEqual(len(executed_params), 8)
+
+    def test_legacy_rows_uses_defaults_for_composite_keys(self):
+        self.cursor._tables.append((None, None, "iSPEC_ExperimentRuns", "TABLE", None))
+        self.cursor._table_descriptions["iSPEC_ExperimentRuns"] = [
+            _col("exprun_EXPRecNo"),
+            _col("exprun_EXPRunNo"),
+            _col("exprun_EXPSearchNo"),
+            _col("exprun_ModificationTS"),
+            _col("exprun_Label"),
+        ]
+        self.cursor.executed.clear()
+
+        ts = datetime(2025, 1, 1, 0, 0, 0)
+        self.cursor._rows = [
+            (1, 1, 1, ts, "A"),
+            (1, 1, 2, ts, "B"),
+            (1, 2, 1, ts, "C"),
+        ]
+
+        resp = self.client.get(
+            "/api/v2/legacy/tables/iSPEC_ExperimentRuns/rows"
+            "?fields=exprun_Label"
+            "&since=2025-01-01T00:00:00Z"
+            "&since_pk=1,1,0"
+            "&limit=2",
+            headers=_auth_headers(),
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertEqual(payload["modified_field"], "exprun_ModificationTS")
+        self.assertEqual(
+            payload["pk_fields"], ["exprun_EXPRecNo", "exprun_EXPRunNo", "exprun_EXPSearchNo"]
+        )
 
     def test_legacy_rows_filters_by_ids(self):
         self.cursor.executed.clear()
