@@ -2,13 +2,14 @@ import os
 import re
 from setuptools import setup, find_packages
 
-_version_re = re.compile(r'__version__\s+=\s+(.*)') # from Armin Ronacher
+#_version_re = re.compile(r'__version__\s+=\s+(.*)') # from Armin Ronacher
 
-with open('bcmproteomics/__init__.py', 'r') as f:
-    version = _version_re.search(f.read()).group(1).strip("'")
+#with open('bcmproteomics/__init__.py', 'r') as f:
+#    version = _version_re.search(f.read()).group(1).strip("'")
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
+version = "0.0.21"
 
 setup(
     name='bcmproteomics',
