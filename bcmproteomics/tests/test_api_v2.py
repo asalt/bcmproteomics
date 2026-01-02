@@ -32,8 +32,10 @@ class FakeCursor:
         self.executed = []
         self.description = []
         self._pos = 0
+        self.tables_calls = 0
 
     def tables(self, tableType=None):
+        self.tables_calls += 1
         return self._tables
 
     def primaryKeys(self, table=None):
@@ -100,6 +102,9 @@ class TestAPIV2(unittest.TestCase):
         api_v2_module.ispec.login_params = SimpleNamespace(database="iSPEC_BCM", url="127.0.0.1")
         api_v2_module.ispec.filedb_connect = lambda params=None: self.conn
 
+        with api_v2_module._SCHEMA_CACHE_LOCK:
+            api_v2_module._SCHEMA_CACHE.clear()
+
         app = Flask(__name__)
         app.config["TESTING"] = True
         app.config["BCMPROTEOMICS_DATADIR"] = self.tmp.name
@@ -127,6 +132,17 @@ class TestAPIV2(unittest.TestCase):
         payload = resp.get_json()
         self.assertIn("iSPEC_Projects", payload["tables"])
 
+    def test_schema_tables_is_cached(self):
+        self.cursor.tables_calls = 0
+
+        resp1 = self.client.get("/api/v2/schema/tables", headers=_auth_headers())
+        self.assertEqual(resp1.status_code, 200)
+        self.assertEqual(self.cursor.tables_calls, 1)
+
+        resp2 = self.client.get("/api/v2/schema/tables", headers=_auth_headers())
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(self.cursor.tables_calls, 1)
+
     def test_schema_table_fields_lists_fields(self):
         resp = self.client.get(
             "/api/v2/schema/tables/iSPEC_Projects/fields",
@@ -137,6 +153,23 @@ class TestAPIV2(unittest.TestCase):
         self.assertEqual(payload["table"], "iSPEC_Projects")
         self.assertIn("prj_PRJRecNo", payload["fields"])
         self.assertIn("prj_ModificationTS", payload["fields"])
+
+    def test_schema_table_fields_is_cached(self):
+        self.cursor.executed.clear()
+
+        resp1 = self.client.get(
+            "/api/v2/schema/tables/iSPEC_Projects/fields",
+            headers=_auth_headers(),
+        )
+        self.assertEqual(resp1.status_code, 200)
+        self.assertEqual(len(self.cursor.executed), 1)
+
+        resp2 = self.client.get(
+            "/api/v2/schema/tables/iSPEC_Projects/fields",
+            headers=_auth_headers(),
+        )
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(len(self.cursor.executed), 1)
 
     def test_manifest_lists_cached_artifacts(self):
         stem = "123_1_1"

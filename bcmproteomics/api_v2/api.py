@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import threading
+import time
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -18,6 +20,74 @@ def _json_response(payload, status=200):
         status=status,
         mimetype="application/json",
     )
+
+
+_SCHEMA_CACHE_LOCK = threading.Lock()
+_SCHEMA_CACHE = {}
+
+
+def _schema_cache_ttl_seconds():
+    try:
+        ttl = int(float(current_app.config.get("BCMPROTEOMICS_API_V2_SCHEMA_CACHE_TTL_SECONDS", 300)))
+    except (TypeError, ValueError):
+        ttl = 300
+    return max(0, ttl)
+
+
+def _schema_cache_max_entries():
+    try:
+        max_entries = int(
+            float(current_app.config.get("BCMPROTEOMICS_API_V2_SCHEMA_CACHE_MAX_ENTRIES", 256))
+        )
+    except (TypeError, ValueError):
+        max_entries = 256
+    return max(0, max_entries)
+
+
+def _schema_cache_prune_locked(now):
+    expired = [key for key, (expires_at, _) in _SCHEMA_CACHE.items() if expires_at <= now]
+    for key in expired:
+        _SCHEMA_CACHE.pop(key, None)
+
+    max_entries = _schema_cache_max_entries()
+    if max_entries <= 0:
+        _SCHEMA_CACHE.clear()
+        return
+
+    while len(_SCHEMA_CACHE) > max_entries:
+        _SCHEMA_CACHE.pop(next(iter(_SCHEMA_CACHE)), None)
+
+
+def _schema_cache_get(key):
+    ttl = _schema_cache_ttl_seconds()
+    if ttl <= 0:
+        return None
+
+    now = time.monotonic()
+    with _SCHEMA_CACHE_LOCK:
+        entry = _SCHEMA_CACHE.get(key)
+        if not entry:
+            return None
+        expires_at, payload = entry
+        if expires_at <= now:
+            _SCHEMA_CACHE.pop(key, None)
+            return None
+        return payload
+
+
+def _schema_cache_set(key, payload):
+    ttl = _schema_cache_ttl_seconds()
+    if ttl <= 0:
+        return
+
+    now = time.monotonic()
+    expires_at = now + ttl
+    with _SCHEMA_CACHE_LOCK:
+        _schema_cache_prune_locked(now)
+        if _schema_cache_max_entries() <= 0:
+            return
+        _SCHEMA_CACHE[key] = (expires_at, payload)
+        _schema_cache_prune_locked(now)
 
 
 def _truthy(value):
@@ -378,6 +448,20 @@ def v2_schema_tables():
     table_type = (request.args.get("table_type") or "TABLE").strip()
     include_type = _truthy(request.args.get("include_type"))
 
+    auth = request.authorization
+    username = auth.username if auth else None
+    cache_key = (
+        "schema_tables",
+        username,
+        ispec.login_params.url,
+        ispec.login_params.database,
+        table_type,
+        include_type,
+    )
+    cached = _schema_cache_get(cache_key)
+    if cached is not None:
+        return _json_response(dict(ok=True, table_type=table_type, tables=cached))
+
     conn, error = _odbc_connect_from_request()
     if error:
         return _json_response(dict(ok=False, error=error), status=502)
@@ -399,6 +483,7 @@ def v2_schema_tables():
         else:
             items = sorted({str(name) for name in items if name is not None}, key=str.lower)
 
+        _schema_cache_set(cache_key, items)
         return _json_response(dict(ok=True, table_type=table_type, tables=items))
     finally:
         try:
@@ -412,6 +497,21 @@ def v2_schema_tables():
 def v2_schema_table_fields(tablename):
     include_meta = _truthy(request.args.get("include_meta"))
 
+    auth = request.authorization
+    username = auth.username if auth else None
+    table_key = str(tablename).strip().lower()
+    cache_key = (
+        "schema_table_fields",
+        username,
+        ispec.login_params.url,
+        ispec.login_params.database,
+        table_key,
+        include_meta,
+    )
+    cached = _schema_cache_get(cache_key)
+    if cached is not None:
+        return _json_response(cached)
+
     conn, error = _odbc_connect_from_request()
     if error:
         return _json_response(dict(ok=False, error=error), status=502)
@@ -421,13 +521,13 @@ def v2_schema_table_fields(tablename):
         resolved = _resolve_table_name(cursor, tablename) or tablename
 
         try:
-            fields = _get_table_columns(cursor, resolved)
+            desc = _get_table_description(cursor, resolved)
         except Exception as exc:
             return _json_response(dict(ok=False, error=str(exc), table=tablename), status=400)
 
+        fields = [col[0] for col in desc if col and col[0] is not None]
         payload = dict(ok=True, table=resolved, fields=fields)
         if include_meta:
-            desc = _get_table_description(cursor, resolved)
             payload["columns"] = [
                 dict(
                     name=col[0],
@@ -440,6 +540,8 @@ def v2_schema_table_fields(tablename):
                 )
                 for col in desc
             ]
+
+        _schema_cache_set(cache_key, payload)
         return _json_response(payload)
     finally:
         try:
