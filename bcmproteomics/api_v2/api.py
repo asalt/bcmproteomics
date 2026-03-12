@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import threading
@@ -7,11 +8,12 @@ from datetime import datetime, timezone
 from functools import wraps
 
 from click import get_app_dir
-from flask import Blueprint, Response, current_app, request
+from flask import Blueprint, Response, current_app, has_app_context, request
 
 from bcmproteomics import ispec
 
 bp = Blueprint("bcmproteomics_api_v2", __name__)
+_LOG = logging.getLogger(__name__)
 
 
 def _json_response(payload, status=200):
@@ -20,6 +22,11 @@ def _json_response(payload, status=200):
         status=status,
         mimetype="application/json",
     )
+
+
+def _log_exception(message, *args):
+    logger = current_app.logger if has_app_context() else _LOG
+    logger.exception(message, *args)
 
 
 _SCHEMA_CACHE_LOCK = threading.Lock()
@@ -157,12 +164,14 @@ def _json_safe(value):
         # NaN is the only value not equal to itself
         if value != value:
             return None
-    except Exception:
+    except Exception as e:
+        _log_exception("Error during JSON safety NaN check for value %r", value)
         pass
     if hasattr(value, "item"):
         try:
             return value.item()
-        except Exception:
+        except Exception as e:
+            _log_exception("Error converting scalar-like value %r using item()", value)
             pass
     return value
 
@@ -188,7 +197,8 @@ def check_auth(username, password):
         return False
     try:
         conn.close()
-    except Exception:
+    except Exception as e:
+        _log_exception("Failed to close auth test DB connection for user %s", username)
         pass
     current_app.logger.info("%s successfully logged in.", username)
     return True
@@ -258,7 +268,8 @@ def _get_table_description(cursor, tablename):
     try:
         query = f"SELECT * FROM {_quote_ident(tablename)} WHERE 1=0"
         cur = cursor.execute(query)
-    except Exception:
+    except Exception as e:
+        _log_exception("Quoted identifier lookup failed for table %s; retrying unquoted", tablename)
         query = f"SELECT * FROM {tablename} WHERE 1=0"
         cur = cursor.execute(query)
     return cur.description or []
@@ -288,10 +299,40 @@ def _resolve_table_name(cursor, requested_name):
         return None
     try:
         tables = [row[2] for row in cursor.tables()]
-    except Exception:
+    except Exception as e:
+        _log_exception("Failed to list tables while resolving table name %s", requested_name)
         return None
     mapping = {str(name).strip().lower(): name for name in tables if name is not None}
     return mapping.get(str(requested_name).strip().lower())
+
+
+def _resolve_table_name_any(cursor, candidates):
+    for candidate in candidates:
+        resolved = _resolve_table_name(cursor, candidate)
+        if resolved:
+            return resolved
+    return None
+
+
+def _resolve_first_field(available, candidates):
+    for candidate in candidates:
+        try:
+            return _resolve_fields(available, [candidate])[0]
+        except KeyError:
+            continue
+    return None
+
+
+def _pk_column_name(row, table_name):
+    name = getattr(row, "column_name", None)
+    if name:
+        return name
+    try:
+        name = row[3]
+    except Exception as e:
+        _log_exception("Failed to read primaryKeys row column for table %s", table_name)
+        return None
+    return name
 
 
 def _maybe_parse_datetime(value):
@@ -321,6 +362,53 @@ LEGACY_TABLE_DEFAULTS = {
         modified_field="exprun_ModificationTS",
     ),
 }
+
+PROJECT_COMMENT_TABLE_CANDIDATES = [
+    "iSPEC_ProjectHistory",
+    "ProjectHistory",
+    "iSPEC_ProjectComments",
+    "ProjectComments",
+]
+PROJECT_COMMENT_PROJECT_FIELD_CANDIDATES = [
+    "prh_PRJRecNo",
+    "prjc_PRJRecNo",
+    "prjcom_PRJRecNo",
+    "project_PRJRecNo",
+    "ProjectRecNo",
+    "PRJRecNo",
+]
+PROJECT_COMMENT_NOTE_FIELD_CANDIDATES = [
+    "prh_Comment",
+    "prjc_Comment",
+    "prjc_Note",
+    "prjcom_Comment",
+    "prjcom_Note",
+    "Comment",
+    "Note",
+]
+PROJECT_COMMENT_AUTHOR_FIELD_CANDIDATES = [
+    "prh_AddedBy",
+    "prjc_EnteredBy",
+    "prjc_User",
+    "prjcom_EnteredBy",
+    "prjcom_User",
+    "EnteredBy",
+    "User",
+]
+PROJECT_COMMENT_CREATED_TS_FIELD_CANDIDATES = [
+    "prh_CreationTS",
+    "prh_ModificationTS",
+    "prjc_CreatedTS",
+    "prjc_ModificationTS",
+    "prjcom_CreatedTS",
+    "prjcom_ModificationTS",
+    "CreatedTS",
+    "ModificationTS",
+]
+PROJECT_COMMENT_TYPE_FIELD_CANDIDATES = [
+    "prh_CommentType",
+    "CommentType",
+]
 
 
 def _table_defaults(table_name):
@@ -354,20 +442,13 @@ def _infer_pk_field(cursor, table_name, available_fields):
             return None
     try:
         rows = list(cursor.primaryKeys(table=table_name))
-    except Exception:
+    except Exception as e:
+        _log_exception("Failed to inspect primary keys for table %s", table_name)
         rows = []
 
     candidates = []
     for row in rows:
-        name = None
-        try:
-            name = row.column_name
-        except Exception:
-            try:
-                # best-effort fallback for tuple-like rows
-                name = row[3]
-            except Exception:
-                name = None
+        name = _pk_column_name(row, table_name)
         if name:
             candidates.append(name)
 
@@ -404,19 +485,13 @@ def _infer_pk_fields(cursor, table_name, available_fields):
 
     try:
         rows = list(cursor.primaryKeys(table=table_name))
-    except Exception:
+    except Exception as e:
+        _log_exception("Failed to inspect primary keys for table %s", table_name)
         rows = []
 
     candidates = []
     for row in rows:
-        name = None
-        try:
-            name = row.column_name
-        except Exception:
-            try:
-                name = row[3]
-            except Exception:
-                name = None
+        name = _pk_column_name(row, table_name)
         if name and name not in candidates:
             candidates.append(name)
 
@@ -488,7 +563,8 @@ def v2_schema_tables():
     finally:
         try:
             conn.close()
-        except Exception:
+        except Exception as e:
+            _log_exception("Failed to close DB connection after schema table listing")
             pass
 
 
@@ -522,8 +598,9 @@ def v2_schema_table_fields(tablename):
 
         try:
             desc = _get_table_description(cursor, resolved)
-        except Exception as exc:
-            return _json_response(dict(ok=False, error=str(exc), table=tablename), status=400)
+        except Exception as e:
+            _log_exception("Failed to describe table %s", resolved)
+            return _json_response(dict(ok=False, error=str(e), table=tablename), status=400)
 
         fields = [col[0] for col in desc if col and col[0] is not None]
         payload = dict(ok=True, table=resolved, fields=fields)
@@ -546,7 +623,8 @@ def v2_schema_table_fields(tablename):
     finally:
         try:
             conn.close()
-        except Exception:
+        except Exception as e:
+            _log_exception("Failed to close DB connection after schema field listing for table %s", tablename)
             pass
 
 
@@ -590,8 +668,9 @@ def v2_legacy_table_rows(tablename):
         resolved_table = _resolve_table_name(cursor, tablename) or tablename
         try:
             available_fields = _get_table_columns(cursor, resolved_table)
-        except Exception as exc:
-            return _json_response(dict(ok=False, error=str(exc), table=tablename), status=400)
+        except Exception as e:
+            _log_exception("Failed to resolve columns for table %s", resolved_table)
+            return _json_response(dict(ok=False, error=str(e), table=tablename), status=400)
 
         if fields_raw:
             requested_fields = [part.strip() for part in fields_raw.split(",") if part.strip()]
@@ -852,7 +931,8 @@ def v2_legacy_table_rows(tablename):
 
         try:
             cur = cursor.execute(sql, params)
-        except Exception as exc:
+        except Exception as e:
+            _log_exception("Quoted query execution failed for table %s; retrying with safe identifiers", resolved_table)
             # fallback for drivers that don't accept quoted identifiers
             try:
                 select_cols = ", ".join(_safe_ident(name) for name in selected_fields)
@@ -874,7 +954,7 @@ def v2_legacy_table_rows(tablename):
                     sql += " ORDER BY " + ", ".join(order_by_unquoted)
             except ValueError as ident_exc:
                 return _json_response(
-                    dict(ok=False, error=str(exc), identifier_error=str(ident_exc), table=resolved_table),
+                    dict(ok=False, error=str(e), identifier_error=str(ident_exc), table=resolved_table),
                     status=400,
                 )
             cur = cursor.execute(sql, params)
@@ -939,7 +1019,191 @@ def v2_legacy_table_rows(tablename):
     finally:
         try:
             conn.close()
-        except Exception:
+        except Exception as e:
+            _log_exception("Failed to close DB connection after legacy row query for table %s", tablename)
+            pass
+
+
+@bp.route("/legacy/project-comments", methods=["POST"])
+@requires_auth
+def v2_legacy_project_comment_create():
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return _json_response(dict(ok=False, error="JSON body must be an object"), status=400)
+
+    allowed_keys = {"project_recno", "note", "author", "created_ts", "created_ts_field", "comment_type"}
+    unknown_keys = sorted(set(payload.keys()) - allowed_keys)
+    if unknown_keys:
+        return _json_response(
+            dict(ok=False, error=f"Unknown request fields: {', '.join(unknown_keys)}"),
+            status=400,
+        )
+
+    raw_project_recno = payload.get("project_recno")
+    if raw_project_recno is None:
+        return _json_response(dict(ok=False, error="Missing project_recno"), status=400)
+
+    try:
+        project_recno = int(float(raw_project_recno))
+    except (TypeError, ValueError):
+        return _json_response(dict(ok=False, error="Invalid project_recno"), status=400)
+
+    note = payload.get("note")
+    if note is None:
+        return _json_response(dict(ok=False, error="Missing note"), status=400)
+    note = str(note).strip()
+    if not note:
+        return _json_response(dict(ok=False, error="note must be non-empty"), status=400)
+
+    author = payload.get("author")
+    if author is None or not str(author).strip():
+        auth = request.authorization
+        author = auth.username if auth and auth.username else "flask-login"
+    else:
+        author = str(author).strip()
+
+    comment_type = payload.get("comment_type")
+    if comment_type is None or not str(comment_type).strip():
+        comment_type = None
+    else:
+        comment_type = str(comment_type).strip()
+
+    created_ts = payload.get("created_ts")
+    created_ts_field_raw = payload.get("created_ts_field")
+
+    conn, error = _odbc_connect_from_request()
+    if error:
+        return _json_response(dict(ok=False, error=error), status=502)
+
+    try:
+        cursor = conn.cursor()
+        resolved_table = _resolve_table_name_any(cursor, PROJECT_COMMENT_TABLE_CANDIDATES)
+        if not resolved_table:
+            return _json_response(
+                dict(
+                    ok=False,
+                    error="Could not find ProjectHistory/ProjectComments table in legacy schema",
+                    table_candidates=PROJECT_COMMENT_TABLE_CANDIDATES,
+                ),
+                status=400,
+            )
+
+        available_fields = _get_table_columns(cursor, resolved_table)
+
+        project_field = _resolve_first_field(
+            available_fields,
+            PROJECT_COMMENT_PROJECT_FIELD_CANDIDATES,
+        )
+        if project_field is None:
+            return _json_response(
+                dict(
+                    ok=False,
+                    error="Unable to infer project field from legacy schema",
+                    table=resolved_table,
+                ),
+                status=400,
+            )
+
+        note_field = _resolve_first_field(
+            available_fields,
+            PROJECT_COMMENT_NOTE_FIELD_CANDIDATES,
+        )
+        if note_field is None:
+            return _json_response(
+                dict(
+                    ok=False,
+                    error="Unable to infer note field from legacy schema",
+                    table=resolved_table,
+                ),
+                status=400,
+            )
+
+        insert_fields = [project_field, note_field]
+        insert_values = [project_recno, note]
+
+        author_field = _resolve_first_field(
+            available_fields,
+            PROJECT_COMMENT_AUTHOR_FIELD_CANDIDATES,
+        )
+        if author_field is not None:
+            insert_fields.append(author_field)
+            insert_values.append(author)
+
+        comment_type_field = None
+        if comment_type is not None:
+            comment_type_field = _resolve_first_field(
+                available_fields,
+                PROJECT_COMMENT_TYPE_FIELD_CANDIDATES,
+            )
+            if comment_type_field is not None:
+                insert_fields.append(comment_type_field)
+                insert_values.append(comment_type)
+
+        if created_ts_field_raw:
+            try:
+                created_ts_field = _resolve_fields(available_fields, [created_ts_field_raw])[0]
+            except KeyError:
+                return _json_response(
+                    dict(ok=False, error=f"Unknown created_ts_field: {created_ts_field_raw}", table=resolved_table),
+                    status=400,
+                )
+        else:
+            created_ts_field = _resolve_first_field(
+                available_fields,
+                PROJECT_COMMENT_CREATED_TS_FIELD_CANDIDATES,
+            )
+
+        if created_ts_field is not None:
+            insert_fields.append(created_ts_field)
+            if created_ts is None:
+                insert_values.append(datetime.now(timezone.utc).replace(tzinfo=None))
+            else:
+                insert_values.append(_maybe_parse_datetime(created_ts))
+
+        placeholders = ", ".join("?" for _ in insert_fields)
+        quoted_fields = ", ".join(_quote_ident(name) for name in insert_fields)
+        sql = f"INSERT INTO {_quote_ident(resolved_table)} ({quoted_fields}) VALUES ({placeholders})"
+
+        try:
+            cursor.execute(sql, insert_values)
+        except Exception as e:
+            _log_exception("Quoted insert failed for table %s; retrying with safe identifiers", resolved_table)
+            quoted_insert_error = str(e)
+            try:
+                safe_table = _safe_ident(resolved_table)
+                safe_fields = ", ".join(_safe_ident(name) for name in insert_fields)
+                sql = f"INSERT INTO {safe_table} ({safe_fields}) VALUES ({placeholders})"
+                cursor.execute(sql, insert_values)
+            except Exception as e:
+                _log_exception("Safe identifier insert fallback failed for table %s", resolved_table)
+                return _json_response(
+                    dict(ok=False, error=quoted_insert_error, fallback_error=str(e), table=resolved_table),
+                    status=400,
+                )
+
+        try:
+            conn.commit()
+        except Exception as e:
+            _log_exception("Failed to commit project comment insert for table %s", resolved_table)
+            pass
+
+        return _json_response(
+            dict(
+                ok=True,
+                table=resolved_table,
+                project_recno=project_recno,
+                author=author,
+                comment_type=comment_type,
+                fields=insert_fields,
+            )
+        )
+    finally:
+        try:
+            conn.close()
+        except Exception as e:
+            _log_exception("Failed to close DB connection after project comment insert")
             pass
 
 

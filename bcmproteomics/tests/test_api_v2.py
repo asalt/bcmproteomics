@@ -76,9 +76,14 @@ class FakeCursor:
 class FakeConn:
     def __init__(self, cursor):
         self._cursor = cursor
+        self.commits = 0
 
     def cursor(self):
         return self._cursor
+
+    def commit(self):
+        self.commits += 1
+        return None
 
     def close(self):
         return None
@@ -89,9 +94,18 @@ class TestAPIV2(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
 
         self.cursor = FakeCursor(
-            tables=[(None, None, "iSPEC_Projects", "TABLE", None)],
+            tables=[
+                (None, None, "iSPEC_Projects", "TABLE", None),
+                (None, None, "iSPEC_ProjectComments", "TABLE", None),
+            ],
             table_descriptions={
-                "iSPEC_Projects": [_col("prj_PRJRecNo"), _col("prj_ModificationTS"), _col("prj_ProjectTitle")]
+                "iSPEC_Projects": [_col("prj_PRJRecNo"), _col("prj_ModificationTS"), _col("prj_ProjectTitle")],
+                "iSPEC_ProjectComments": [
+                    _col("prjc_PRJRecNo"),
+                    _col("prjc_Comment"),
+                    _col("prjc_EnteredBy"),
+                    _col("prjc_CreatedTS"),
+                ],
             },
             pk_field="prj_PRJRecNo",
         )
@@ -329,6 +343,140 @@ class TestAPIV2(unittest.TestCase):
         self.assertIn("IN", executed_sql.upper())
         self.assertIn("prj_PRJRecNo", executed_sql)
         self.assertIn(12, executed_params)
+
+    def test_legacy_project_comments_creates_note(self):
+        self.cursor.executed.clear()
+        self.conn.commits = 0
+
+        resp = self.client.post(
+            "/api/v2/legacy/project-comments",
+            headers=_auth_headers(),
+            json={
+                "project_recno": 321,
+                "note": "v2 generated note",
+                "author": "unit-test",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["table"], "iSPEC_ProjectComments")
+        self.assertEqual(payload["project_recno"], 321)
+
+        executed_sql, executed_params = self.cursor.executed[-1]
+        self.assertIn("INSERT INTO", executed_sql.upper())
+        self.assertIn("iSPEC_ProjectComments", executed_sql)
+        self.assertIn("prjc_PRJRecNo", executed_sql)
+        self.assertIn("prjc_Comment", executed_sql)
+        self.assertEqual(executed_params[0], 321)
+        self.assertEqual(executed_params[1], "v2 generated note")
+        self.assertIn("unit-test", executed_params)
+        self.assertEqual(self.conn.commits, 1)
+
+    def test_legacy_project_comments_defaults_author_from_auth(self):
+        self.cursor.executed.clear()
+        self.conn.commits = 0
+
+        resp = self.client.post(
+            "/api/v2/legacy/project-comments",
+            headers=_auth_headers(username="flask-login"),
+            json={
+                "project_recno": 222,
+                "note": "author defaults from auth",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["author"], "flask-login")
+
+        _, executed_params = self.cursor.executed[-1]
+        self.assertIn("flask-login", executed_params)
+
+    def test_legacy_project_comments_allows_missing_author_column(self):
+        self.cursor._table_descriptions["iSPEC_ProjectComments"] = [
+            _col("prjc_PRJRecNo"),
+            _col("prjc_Comment"),
+            _col("prjc_CreatedTS"),
+        ]
+        self.cursor.executed.clear()
+        self.conn.commits = 0
+
+        resp = self.client.post(
+            "/api/v2/legacy/project-comments",
+            headers=_auth_headers(username="flask-login"),
+            json={
+                "project_recno": 223,
+                "note": "legacy fills author",
+                "author": "explicit-author",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+
+        executed_sql, executed_params = self.cursor.executed[-1]
+        self.assertNotIn("prjc_EnteredBy", executed_sql)
+        self.assertNotIn("explicit-author", executed_params)
+
+    def test_legacy_project_comments_rejects_unknown_request_fields(self):
+        resp = self.client.post(
+            "/api/v2/legacy/project-comments",
+            headers=_auth_headers(),
+            json={
+                "project_recno": 11,
+                "note": "hello",
+                "table": "iSPEC_ProjectComments",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        payload = resp.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("Unknown request fields", payload["error"])
+        self.assertIn("table", payload["error"])
+
+    def test_legacy_project_comments_falls_back_to_project_history(self):
+        self.cursor._tables = [
+            (None, None, "iSPEC_Projects", "TABLE", None),
+            (None, None, "iSPEC_ProjectHistory", "TABLE", None),
+        ]
+        self.cursor._table_descriptions["iSPEC_ProjectHistory"] = [
+            _col("prh_PRJRecNo"),
+            _col("prh_Comment"),
+            _col("prh_AddedBy"),
+            _col("prh_CreationTS"),
+            _col("prh_CommentType"),
+        ]
+        self.cursor.executed.clear()
+        self.conn.commits = 0
+
+        resp = self.client.post(
+            "/api/v2/legacy/project-comments",
+            headers=_auth_headers(),
+            json={
+                "project_recno": 654,
+                "note": "history-backed note",
+                "author": "unit-test",
+                "comment_type": "assistant_note",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["table"], "iSPEC_ProjectHistory")
+        self.assertEqual(payload["comment_type"], "assistant_note")
+
+        executed_sql, executed_params = self.cursor.executed[-1]
+        self.assertIn("iSPEC_ProjectHistory", executed_sql)
+        self.assertIn("prh_PRJRecNo", executed_sql)
+        self.assertIn("prh_Comment", executed_sql)
+        self.assertIn("prh_AddedBy", executed_sql)
+        self.assertIn("prh_CommentType", executed_sql)
+        self.assertEqual(executed_params[0], 654)
+        self.assertEqual(executed_params[1], "history-backed note")
+        self.assertIn("unit-test", executed_params)
+        self.assertIn("assistant_note", executed_params)
+        self.assertEqual(self.conn.commits, 1)
 
 
 if __name__ == "__main__":
